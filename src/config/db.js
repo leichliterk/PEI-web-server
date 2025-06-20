@@ -1,6 +1,7 @@
 
 const mongoose = require('mongoose');
-const uri = `mongodb+srv://api_user:5ZKBbw9YBgFKb4uz@cluster0.zf8h7c3.mongodb.net/${process.env.STAGING ? "staging" : "production"}`;
+// const uri = `mongodb+srv://api_user:5ZKBbw9YBgFKb4uz@cluster0.zf8h7c3.mongodb.net/${process.env.STAGING ? "staging" : "production"}`;
+const uri = process.env.MONGODB_URI;
 
 const clientOptions = { serverApi: { version: '1', strict: true, deprecationErrors: true } };
 
