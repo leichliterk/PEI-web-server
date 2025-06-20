@@ -11,15 +11,15 @@ app.use(express.json());
 connectToMongo();
 
 app.get("/", (req, res) => { 
-    res.send("Welcome to CMM-API!"); 
+    res.send("Welcome to PEI-DATA-API!"); 
 });
 
-const cmmRouter = require('./src/routes/cmm.routes');
+const dataRouter = require('./src/routes/data.routes');
 
-app.use('/api/sam', cmmRouter);
+app.use('/api/data', dataRouter);
 
 app.listen(process.env.PORT || 443, () => {
-    console.log("CMM-API is listening on port 443.....");
+    console.log("PEI-DATA-API is listening on port 443.....");
 });
 
 module.exports = app;
