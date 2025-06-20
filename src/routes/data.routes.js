@@ -1,8 +1,19 @@
 const express = require('express');
 
+const { about } = require('../controllers/utility.controller');
 const { getAllUsers, updateUser, userExists, getUser } = require('../controllers/user.controller');
 
 const router = express.Router();
+
+
+
+/****************************************
+ * 
+ *   Utility routes
+ * 
+ ****************************************/
+
+router.route('/about').get(about);
 
 
 /****************************************
