@@ -22,6 +22,40 @@ const getAllUsers = asyncHandler(async (req, res, next) => {
     return res.json({ data: users, records: users.length,  status: "success", code: "001" });
 });
 
+const registerUser = asyncHandler(async (req, res, next) => {
+    const b = req.body;
+
+    const auth0 = await superagent.post('https://sv-pei.us.auth0.com/dbconnections/signup')
+        .send(b)
+        .catch((error) => {
+            return res.status(400).json(error);
+        });
+
+    if(auth0.res.text) {
+        const auth0_new = JSON.parse(auth0.res.text);
+        const user = new UserSchema({
+            "fname" : b.given_name,
+            "lname" : b.family_name,
+            "email" : b.email,
+            "auth0_id" : auth0_new._id,
+            "role" : b.role,
+            "status" : b.status,
+            "group" : b.group,
+            "subscription" : b.subscription,
+            "comment": b.comment
+        });
+
+        console.log(user);
+        
+        try {
+            await user.save();
+            return res.status(201).json(user);
+        } catch (error) {
+            return res.status(400).json(error);
+        };
+    }
+});
+
 const updateUser = asyncHandler(async  (req, res, next) => {
     const user = await UserSchema.findOne({ email : req.body.email });
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -37,6 +71,7 @@ const updateUser = asyncHandler(async  (req, res, next) => {
 module.exports = {
     getUser,
     getAllUsers,
-    updateUser,
-    userExists
+    userExists,
+    registerUser,
+    updateUser
 }
