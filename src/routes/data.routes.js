@@ -2,6 +2,7 @@ const express = require('express');
 
 const { about } = require('../controllers/utility.controller');
 const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require('../controllers/user.controller');
+const { connStatus } = require('../controllers/site.controller');
 
 const router = express.Router();
 
@@ -14,6 +15,8 @@ const router = express.Router();
  ****************************************/
 
 router.route('/about').get(about);
+
+router.route('/conn-status').put(connStatus);
 
 
 /****************************************
