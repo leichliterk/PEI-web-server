@@ -2,7 +2,7 @@ const express = require('express');
 
 const { about } = require('../controllers/utility.controller');
 const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require('../controllers/user.controller');
-const { connStatus } = require('../controllers/site.controller');
+const { connStatus, getAllSites } = require('../controllers/site.controller');
 
 const router = express.Router();
 
@@ -37,5 +37,13 @@ router.route('/user/updateUser').put(updateUser);
 
 
 
+
+/****************************************
+ * 
+ *   Site routes
+ * 
+ ****************************************/
+
+router.route('/site/getAllSites').get(getAllSites);
 
 module.exports = router;
