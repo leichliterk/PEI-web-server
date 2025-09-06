@@ -9,6 +9,10 @@ const siteSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    uptime: {
+        type: Number,
+        required: true
+    },
     meta: {
         type: {},
         required: true
