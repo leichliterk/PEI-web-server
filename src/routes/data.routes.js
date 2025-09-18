@@ -2,7 +2,8 @@ const express = require('express');
 
 const { about } = require('../controllers/utility.controller');
 const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require('../controllers/user.controller');
-const { connStatus, getAllSites } = require('../controllers/site.controller');
+const { connStatus, getAllSites, getSite } = require('../controllers/site.controller');
+const { getAllTenants, getTenantById } = require('../controllers/tenant.controller');
 
 const router = express.Router();
 
@@ -45,5 +46,17 @@ router.route('/user/updateUser').put(updateUser);
  ****************************************/
 
 router.route('/site/getAllSites').get(getAllSites);
+
+router.route('/site/getSite/:site_id').get(getSite);
+
+
+
+/****************************************
+ *
+ *   Tenant routes
+ *
+ ****************************************/
+
+router.route('/tenant/getTenantById/:tenant_id').get(getTenantById);
 
 module.exports = router;

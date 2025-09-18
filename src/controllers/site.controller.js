@@ -29,9 +29,9 @@ const getAllSites = asyncHandler(async (req, res, next) => {
         timestamp: Date,
         meta: String
     }, { timestamps: true }));
-    
+
     const allSites = await sites.find({});
-    
+
     // Calculate uptime for each site
     const sitesWithUptime = await Promise.all(allSites.map(async (site) => {
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -39,18 +39,56 @@ const getAllSites = asyncHandler(async (req, res, next) => {
             meta: site.id.toString(),
             timestamp: { $gte: twentyFourHoursAgo }
         });
-        
+
         const siteObj = site.toObject();
         siteObj.uptime = connectionCount / 86400;
         return siteObj;
     }));
-    
+
     await stagingConnection.close();
-    
+
     return res.json(sitesWithUptime);
+});
+
+const getSite = asyncHandler(async (req, res, next) => {
+    const site_id = req.params.site_id;
+
+    if (!site_id) {
+        return res.status(400).json({ message: "Site ID missing." });
+    }
+
+    // Get site from staging database
+    const stagingConnection = mongoose.createConnection(process.env.MONGODB_URI.replace(/\/\w+$/, '/staging'));
+    const sites = stagingConnection.model('sites', Site.schema);
+    const connections = stagingConnection.model('site-connection', new mongoose.Schema({
+        timestamp: Date,
+        meta: String
+    }, { timestamps: true }));
+
+    const site = await sites.findById(site_id);
+
+    if (!site) {
+        await stagingConnection.close();
+        return res.status(404).json({ message: "Site not found" });
+    }
+
+    // Calculate uptime for the site
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const connectionCount = await connections.countDocuments({
+        meta: site.id.toString(),
+        timestamp: { $gte: twentyFourHoursAgo }
+    });
+
+    const siteObj = site.toObject();
+    siteObj.uptime = connectionCount / 86400;
+
+    await stagingConnection.close();
+
+    return res.json(siteObj);
 });
 
 module.exports = {
     connStatus,
-    getAllSites
+    getAllSites,
+    getSite
 };
