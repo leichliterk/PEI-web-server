@@ -5,12 +5,16 @@ const siteSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    id: {
+    site_id: {
         type: Number,
         required: true
     },
     uptime: {
         type: Number,
+        required: true
+    },
+    connection_status: {
+        type: Boolean,
         required: true
     },
     meta: {
