@@ -19,6 +19,8 @@ router.route('/about').get(about);
 
 router.route('/conn-status').put(connStatus);
 
+router.route('/log-connection').post(connStatus);
+
 
 /****************************************
  * 

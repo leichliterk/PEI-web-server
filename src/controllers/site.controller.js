@@ -1,24 +1,34 @@
 const asyncHandler = require("express-async-handler");
 const mongoose = require("mongoose");
 const Site = require("../models/site.model");
+const ConnectionLog = require("../models/ConnectionLog");
 
 const connStatus = asyncHandler(async (req, res, next) => {
-    const status = {
-        timestamp: new Date(),
-        site_id: req.body.siteNumber
-    };
-    
-    // Save to site-connections collection in staging database
-    const stagingConnection = mongoose.createConnection(process.env.MONGODB_URI.replace(/\/\w+$/, '/staging'));
-    const SiteConnection = stagingConnection.model('site-connection', new mongoose.Schema({
-        timestamp: Date,
-        site_id: Number
-    }, { timestamps: false }));
-    
-    const result = await SiteConnection.create(status);
-    await stagingConnection.close();
-    
-    return res.json(result);
+    const { status, timestamp, details, site_id, queuedFailures = [] } = req.body;
+
+    try {
+        // Log the current attempt (usually success, since it reached here)
+        await ConnectionLog.create({
+            timestamp: timestamp ? new Date(timestamp) : new Date(),
+            status: status || 'success',
+            site_id,
+            details
+        });
+
+        // If there are queued failures from the client, log them too
+        for (const failure of queuedFailures) {
+            await ConnectionLog.create({
+                timestamp: new Date(failure.timestamp),
+                status: 'failure',
+                site_id: failure.site_id || site_id,
+                details: failure.details
+            });
+        }
+
+        return res.status(200).json({ message: 'Logged successfully' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Logging failed', error: error.message });
+    }
 });
 
 const getAllSites = asyncHandler(async (req, res, next) => {
