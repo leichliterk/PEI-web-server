@@ -114,8 +114,34 @@ const getSite = asyncHandler(async (req, res, next) => {
     return res.json(siteObj);
 });
 
+const getConnectionLogs = asyncHandler(async (req, res, next) => {
+    const site_id = req.params.site_id;
+    const limit = parseInt(req.query.limit) || 10; // Default to 10 if not specified
+
+    if (!site_id) {
+        return res.status(400).json({ message: "Site ID missing." });
+    }
+
+    try {
+        // Retrieve connection logs for the specified site_id, sorted by timestamp descending
+        const connectionLogs = await ConnectionLog.find({ site_id: parseInt(site_id) })
+            .sort({ timestamp: -1 })
+            .limit(limit);
+
+        return res.status(200).json({
+            site_id: parseInt(site_id),
+            limit,
+            count: connectionLogs.length,
+            logs: connectionLogs
+        });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to retrieve connection logs', error: error.message });
+    }
+});
+
 module.exports = {
     connStatus,
     getAllSites,
-    getSite
+    getSite,
+    getConnectionLogs
 };
