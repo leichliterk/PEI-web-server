@@ -47,9 +47,9 @@ router.route('/user/updateUser').put(updateUser);
  * 
  ****************************************/
 
-router.route('/site/getAllSites').get(getAllSites);
+// router.route('/site/getAllSites').get(getAllSites);
 
-router.route('/site/getSite/:site_id').get(getSite);
+// router.route('/site/getSite/:site_id').get(getSite);
 
 router.route('/site/getConnectionLogs/:site_id').get(getConnectionLogs);
 
