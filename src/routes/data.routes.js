@@ -18,11 +18,7 @@ const router = express.Router();
 //  Returns About info
 router.route('/about').get(about);
 
-//  Records a connection status record from a site node 
-router.route('/conn-status').put(connStatus);
 
-
-router.route('/log-connection').post(connStatus);
 
 
 /****************************************
@@ -53,9 +49,6 @@ router.route('/user/updateUser').put(updateUser);
 // router.route('/site/getAllSites').get(getAllSites);
 
 // router.route('/site/getSite/:site_id').get(getSite);
-
-// Returns the connection logs for a site node
-router.route('/site/getConnectionLogs/:site_id').get(getConnectionLogs);
 
 // Updates the name of a site
 router.route('/site/updateSiteName/:tenant_id/:site_id').put(updateSiteName);
