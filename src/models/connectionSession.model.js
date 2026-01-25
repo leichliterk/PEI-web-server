@@ -1,0 +1,37 @@
+const mongoose = require('mongoose');
+
+const connectionSessionSchema = new mongoose.Schema({
+    tenant_id: {
+        type: Number,
+        required: true,
+        index: true
+    },
+    site_id: {
+        type: Number,
+        required: true,
+        index: true
+    },
+    connected_at: {
+        type: Date,
+        required: true
+    },
+    disconnected_at: {
+        type: Date,
+        required: true
+    },
+    duration_ms: {
+        type: Number,
+        required: true
+    },
+    disconnect_reason: {
+        type: String,
+        default: 'unknown'
+    }
+});
+
+// Compound index for efficient queries by tenant/site over time ranges
+connectionSessionSchema.index({ tenant_id: 1, site_id: 1, connected_at: -1 });
+
+const ConnectionSession = mongoose.model('ConnectionSession', connectionSessionSchema);
+
+module.exports = ConnectionSession;
