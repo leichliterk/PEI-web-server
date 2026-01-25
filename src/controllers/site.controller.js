@@ -2,6 +2,7 @@ const asyncHandler = require("express-async-handler");
 const mongoose = require("mongoose");
 const Site = require("../models/site.model");
 const Tenant = require("../models/tenant.model");
+const ConnectionSession = require("../models/connectionSession.model");
 
 
 const updateSiteName = asyncHandler(async (req, res, next) => {
@@ -55,6 +56,68 @@ const updateSiteName = asyncHandler(async (req, res, next) => {
     }
 });
 
+const getConnectionUptime = asyncHandler(async (req, res) => {
+    const { tenant_id, site_id } = req.params;
+    const { days = 7 } = req.query;
+
+    if (!tenant_id || !site_id) {
+        return res.status(400).json({ message: "Tenant ID and Site ID are required." });
+    }
+
+    const tenantIdNum = parseInt(tenant_id);
+    const siteIdNum = parseInt(site_id);
+    const daysNum = parseInt(days);
+
+    if (isNaN(daysNum) || daysNum < 1) {
+        return res.status(400).json({ message: "Days must be a positive integer." });
+    }
+
+    try {
+        const now = new Date();
+        const startDate = new Date(now.getTime() - daysNum * 24 * 60 * 60 * 1000);
+
+        // Get all sessions within the time range
+        const sessions = await ConnectionSession.find({
+            tenant_id: tenantIdNum,
+            site_id: siteIdNum,
+            connected_at: { $gte: startDate }
+        }).sort({ connected_at: 1 });
+
+        // Calculate total uptime
+        const totalTimeMs = now.getTime() - startDate.getTime();
+        let totalUptimeMs = 0;
+
+        sessions.forEach(session => {
+            // Clamp session start to the query window
+            const sessionStart = session.connected_at < startDate ? startDate : session.connected_at;
+            const sessionEnd = session.disconnected_at > now ? now : session.disconnected_at;
+            totalUptimeMs += sessionEnd.getTime() - sessionStart.getTime();
+        });
+
+        const uptimePercentage = (totalUptimeMs / totalTimeMs) * 100;
+
+        return res.status(200).json({
+            tenant_id: tenantIdNum,
+            site_id: siteIdNum,
+            days: daysNum,
+            start_date: startDate.toISOString(),
+            end_date: now.toISOString(),
+            total_time_ms: totalTimeMs,
+            total_uptime_ms: totalUptimeMs,
+            uptime_percentage: Math.round(uptimePercentage * 100) / 100,
+            sessions: sessions.map(s => ({
+                connected_at: s.connected_at,
+                disconnected_at: s.disconnected_at,
+                duration_ms: s.duration_ms,
+                disconnect_reason: s.disconnect_reason
+            }))
+        });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to retrieve connection uptime', error: error.message });
+    }
+});
+
 module.exports = {
-    updateSiteName
+    updateSiteName,
+    getConnectionUptime
 };

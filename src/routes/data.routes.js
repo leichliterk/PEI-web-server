@@ -2,7 +2,7 @@ const express = require('express');
 
 const { about } = require('../controllers/utility.controller');
 const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require('../controllers/user.controller');
-const { connStatus, getAllSites, getSite, getConnectionLogs, updateSiteName } = require('../controllers/site.controller');
+const { connStatus, getAllSites, getSite, getConnectionLogs, updateSiteName, getConnectionUptime } = require('../controllers/site.controller');
 const { getAllTenants, getTenantById } = require('../controllers/tenant.controller');
 
 const router = express.Router();
@@ -52,6 +52,9 @@ router.route('/user/updateUser').put(updateUser);
 
 // Updates the name of a site
 router.route('/site/updateSiteName/:tenant_id/:site_id').put(updateSiteName);
+
+// Get connection uptime for a site
+router.route('/site/uptime/:tenant_id/:site_id').get(getConnectionUptime);
 
 
 
