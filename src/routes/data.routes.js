@@ -2,7 +2,7 @@ const express = require('express');
 
 const { about } = require('../controllers/utility.controller');
 const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require('../controllers/user.controller');
-const { connStatus, getAllSites, getSite, getConnectionLogs, updateSiteName } = require('../controllers/site.controller');
+const { connStatus, getAllSites, getSite, getConnectionLogs, updateSiteName, getConnectionUptime } = require('../controllers/site.controller');
 const { getAllTenants, getTenantById } = require('../controllers/tenant.controller');
 
 const router = express.Router();
@@ -18,11 +18,7 @@ const router = express.Router();
 //  Returns About info
 router.route('/about').get(about);
 
-//  Records a connection status record from a site node 
-router.route('/conn-status').put(connStatus);
 
-
-router.route('/log-connection').post(connStatus);
 
 
 /****************************************
@@ -54,11 +50,11 @@ router.route('/user/updateUser').put(updateUser);
 
 // router.route('/site/getSite/:site_id').get(getSite);
 
-// Returns the connection logs for a site node
-router.route('/site/getConnectionLogs/:site_id').get(getConnectionLogs);
-
 // Updates the name of a site
 router.route('/site/updateSiteName/:tenant_id/:site_id').put(updateSiteName);
+
+// Get connection uptime for a site
+router.route('/site/uptime/:tenant_id/:site_id').get(getConnectionUptime);
 
 
 
