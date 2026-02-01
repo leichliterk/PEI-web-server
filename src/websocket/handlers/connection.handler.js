@@ -1,6 +1,8 @@
 const Tenant = require('../../models/tenant.model');
 const ConnectionSession = require('../../models/connectionSession.model');
 const connectionManager = require('../services/connectionManager');
+const webHandler = require('./web.handler');
+const { getWebNamespace } = require('../namespaceRegistry');
 
 const connectionHandler = {
     /**
@@ -66,22 +68,30 @@ const connectionHandler = {
     },
 
     /**
-     * Update site connection status in database
+     * Update site connection status in database and broadcast to web clients
      * @param {number} tenant_id
      * @param {number} site_id
      * @param {boolean} status
      */
     async updateSiteConnectionStatus(tenant_id, site_id, status) {
+        const lastSeen = new Date();
+
         try {
             await Tenant.findOneAndUpdate(
                 { tenant_id, 'sites.site_id': site_id },
                 {
                     $set: {
                         'sites.$.connection_status': status,
-                        'sites.$.last_seen': new Date()
+                        'sites.$.last_seen': lastSeen
                     }
                 }
             );
+
+            // Broadcast status update to subscribed web clients
+            const webNs = getWebNamespace();
+            if (webNs) {
+                webHandler.broadcastSiteStatus(webNs, tenant_id, site_id, status, lastSeen);
+            }
         } catch (error) {
             console.error('Failed to update connection status:', error);
         }

@@ -2,6 +2,8 @@ const { Server } = require('socket.io');
 const authMiddleware = require('./middleware/auth.middleware');
 const connectionHandler = require('./handlers/connection.handler');
 const heartbeatHandler = require('./handlers/heartbeat.handler');
+const webHandler = require('./handlers/web.handler');
+const namespaceRegistry = require('./namespaceRegistry');
 
 /**
  * Initialize WebSocket server with Socket.io
@@ -24,7 +26,7 @@ function initializeWebSocket(httpServer) {
     // Apply authentication middleware
     desktopNamespace.use(authMiddleware);
 
-    // Handle connections
+    // Handle desktop connections
     desktopNamespace.on('connection', (socket) => {
         connectionHandler.onConnect(socket, desktopNamespace);
 
@@ -33,7 +35,20 @@ function initializeWebSocket(httpServer) {
         socket.on('disconnect', (reason) => connectionHandler.onDisconnect(socket, reason));
     });
 
-    console.log('WebSocket server initialized on /api/data/desktop namespace');
+    // Namespace for web clients
+    const webNamespace = io.of('/api/data/web');
+    namespaceRegistry.setWebNamespace(webNamespace);
+
+    // Handle web client connections
+    webNamespace.on('connection', (socket) => {
+        webHandler.onConnect(socket);
+
+        socket.on('subscribe_tenant', (data) => webHandler.onSubscribeTenant(socket, data));
+        socket.on('unsubscribe_tenant', (data) => webHandler.onUnsubscribeTenant(socket, data));
+        socket.on('disconnect', (reason) => webHandler.onDisconnect(socket, reason));
+    });
+
+    console.log('WebSocket server initialized on /api/data/desktop and /api/data/web namespaces');
 
     return io;
 }
