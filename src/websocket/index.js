@@ -16,8 +16,8 @@ function initializeWebSocket(httpServer) {
             origin: "*",
             methods: ["GET", "POST"]
         },
-        pingTimeout: 60000,      // 60 seconds before considering disconnected
-        pingInterval: 25000      // Send ping every 25 seconds
+        pingTimeout: 30000,      // 30 seconds before considering disconnected
+        pingInterval: 10000      // Send ping every 10 seconds
     });
 
     // Namespace for desktop clients
