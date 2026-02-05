@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Site = require("../models/site.model");
 const Tenant = require("../models/tenant.model");
 const ConnectionSession = require("../models/connectionSession.model");
+const connectionManager = require("../websocket/services/connectionManager");
 
 
 const updateSiteName = asyncHandler(async (req, res, next) => {
@@ -96,6 +97,25 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
 
         const uptimePercentage = (totalUptimeMs / totalTimeMs) * 100;
 
+        // Build sessions array from completed sessions
+        const sessionList = sessions.map(s => ({
+            connected_at: s.connected_at,
+            disconnected_at: s.disconnected_at,
+            duration_ms: s.duration_ms,
+            disconnect_reason: s.disconnect_reason
+        }));
+
+        // Check for active session and include if present
+        const activeConnection = connectionManager.getConnection(tenantIdNum, siteIdNum);
+        if (activeConnection) {
+            sessionList.push({
+                connected_at: activeConnection.connectedAt,
+                disconnected_at: null,
+                duration_ms: null,
+                disconnect_reason: null
+            });
+        }
+
         return res.status(200).json({
             tenant_id: tenantIdNum,
             site_id: siteIdNum,
@@ -105,12 +125,7 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
             total_time_ms: totalTimeMs,
             total_uptime_ms: totalUptimeMs,
             uptime_percentage: Math.round(uptimePercentage * 100) / 100,
-            sessions: sessions.map(s => ({
-                connected_at: s.connected_at,
-                disconnected_at: s.disconnected_at,
-                duration_ms: s.duration_ms,
-                disconnect_reason: s.disconnect_reason
-            }))
+            sessions: sessionList
         });
     } catch (error) {
         return res.status(500).json({ message: 'Failed to retrieve connection uptime', error: error.message });
