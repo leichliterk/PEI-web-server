@@ -7,13 +7,14 @@ const connectionManager = {
      * @param {Object} socket - Socket.io socket instance
      */
     addConnection(socket) {
-        const { site_id, tenant_id } = socket.siteData;
+        const { site_id, tenant_id, connection_source } = socket.siteData;
         const key = `${tenant_id}-${site_id}`;
 
         activeConnections.set(key, {
             socketId: socket.id,
             site_id,
             tenant_id,
+            connection_source,
             connectedAt: new Date(),
             lastHeartbeat: new Date()
         });

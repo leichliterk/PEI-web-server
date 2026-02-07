@@ -26,6 +26,11 @@ const connectionSessionSchema = new mongoose.Schema({
     disconnect_reason: {
         type: String,
         default: 'unknown'
+    },
+    connection_source: {
+        type: String,
+        enum: ['app', 'service', 'unknown'],
+        default: 'unknown'
     }
 });
 

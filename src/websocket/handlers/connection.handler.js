@@ -53,7 +53,7 @@ const connectionHandler = {
             const sessionDuration = Date.now() - connInfo.connectedAt.getTime();
             console.log(`Session duration for ${site_name}: ${Math.round(sessionDuration / 1000)}s`);
 
-            await this.saveConnectionSession(tenant_id, site_id, connInfo.connectedAt, reason, sessionDuration);
+            await this.saveConnectionSession(tenant_id, site_id, connInfo.connectedAt, reason, sessionDuration, connInfo.connection_source);
         }
     },
 
@@ -104,8 +104,9 @@ const connectionHandler = {
      * @param {Date} connectedAt
      * @param {string} disconnectReason
      * @param {number} durationMs
+     * @param {string} connectionSource
      */
-    async saveConnectionSession(tenant_id, site_id, connectedAt, disconnectReason, durationMs) {
+    async saveConnectionSession(tenant_id, site_id, connectedAt, disconnectReason, durationMs, connectionSource) {
         try {
             await ConnectionSession.create({
                 tenant_id,
@@ -113,7 +114,8 @@ const connectionHandler = {
                 connected_at: connectedAt,
                 disconnected_at: new Date(),
                 duration_ms: durationMs,
-                disconnect_reason: disconnectReason
+                disconnect_reason: disconnectReason,
+                connection_source: connectionSource
             });
             console.log(`Session saved for ${tenant_id}-${site_id}: ${Math.round(durationMs / 1000)}s`);
         } catch (error) {
