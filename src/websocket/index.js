@@ -32,6 +32,10 @@ function initializeWebSocket(httpServer) {
     desktopNamespace.on('connection', (socket) => {
         connectionHandler.onConnect(socket, desktopNamespace);
 
+        socket.onAny((event, ...args) => {
+            console.log(`[Desktop socket] Event received: "${event}"`);
+        });
+
         socket.on('heartbeat', (data) => heartbeatHandler.onHeartbeat(socket, data));
         socket.on('status_update', (data) => connectionHandler.onStatusUpdate(socket, data));
         socket.on('file_upload', (data) => fileHandler.onFileUpload(socket, data));
