@@ -18,6 +18,7 @@ const fileHandler = {
     async onFileUpload(socket, data) {
         const { tenant_id, site_id } = socket.siteData;
         const { filename, content, encoding, size, timestamp, source, sha256 } = data;
+        console.log(`[FileHandler] file_upload received from ${tenant_id}-${site_id}: filename=${filename}, encoding=${encoding}, size=${size}, hasContent=${!!content}, hasHash=${!!sha256}, hasSource=${!!source}`);
 
         if (!filename || !content || !encoding || !source || !sha256) {
             socket.emit('file_upload_error', { message: 'Missing required fields: filename, content, encoding, source, sha256' });
