@@ -102,7 +102,8 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
             connected_at: s.connected_at,
             disconnected_at: s.disconnected_at,
             duration_ms: s.duration_ms,
-            disconnect_reason: s.disconnect_reason
+            disconnect_reason: s.disconnect_reason,
+            connection_source: s.connection_source
         }));
 
         // Check for active session and include if present
@@ -112,7 +113,8 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
                 connected_at: activeConnection.connectedAt,
                 disconnected_at: null,
                 duration_ms: null,
-                disconnect_reason: null
+                disconnect_reason: null,
+                connection_source: activeConnection.connection_source
             });
         }
 
