@@ -30,6 +30,16 @@ const siteFileSchema = new mongoose.Schema({
     source: {
         type: String,
         required: true
+    },
+    sha256: {
+        type: String,
+        required: true
+    },
+    category: {
+        type: String,
+        enum: ['accounting_log', 'flare_data', 'cr_files', 'uncategorized'],
+        required: true,
+        default: 'uncategorized'
     }
 }, { timestamps: true });
 
