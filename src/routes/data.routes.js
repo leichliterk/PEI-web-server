@@ -2,8 +2,9 @@ const express = require('express');
 
 const { about } = require('../controllers/utility.controller');
 const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require('../controllers/user.controller');
-const { connStatus, getAllSites, getSite, getConnectionLogs, updateSiteName, getConnectionUptime } = require('../controllers/site.controller');
-const { getAllTenants, getTenantById } = require('../controllers/tenant.controller');
+const { updateSiteName, getConnectionUptime } = require('../controllers/site.controller');
+const { getTenantById } = require('../controllers/tenant.controller');
+const { getSiteFiles, downloadFile } = require('../controllers/file.controller');
 
 const router = express.Router();
 
@@ -55,6 +56,20 @@ router.route('/site/updateSiteName/:tenant_id/:site_id').put(updateSiteName);
 
 // Get connection uptime for a site
 router.route('/site/uptime/:tenant_id/:site_id').get(getConnectionUptime);
+
+
+
+/****************************************
+ *
+ *   File routes
+ *
+ ****************************************/
+
+// List files for a site
+router.route('/files/:tenant_id/:site_id').get(getSiteFiles);
+
+// Download a file by ID
+router.route('/files/download/:file_id').get(downloadFile);
 
 
 

@@ -3,6 +3,7 @@ const authMiddleware = require('./middleware/auth.middleware');
 const connectionHandler = require('./handlers/connection.handler');
 const heartbeatHandler = require('./handlers/heartbeat.handler');
 const webHandler = require('./handlers/web.handler');
+const fileHandler = require('./handlers/file.handler');
 const namespaceRegistry = require('./namespaceRegistry');
 
 /**
@@ -32,6 +33,7 @@ function initializeWebSocket(httpServer) {
 
         socket.on('heartbeat', (data) => heartbeatHandler.onHeartbeat(socket, data));
         socket.on('status_update', (data) => connectionHandler.onStatusUpdate(socket, data));
+        socket.on('file_upload', (data) => fileHandler.onFileUpload(socket, data));
         socket.on('disconnect', (reason) => connectionHandler.onDisconnect(socket, reason));
     });
 
