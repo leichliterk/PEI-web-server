@@ -21,12 +21,12 @@ const fileHandler = {
         console.log(`[FileHandler] ftp:file received from ${tenant_id}-${site_id}: filename=${filename}, encoding=${encoding}, size=${size}, hasContent=${!!content}, hasHash=${!!sha256}, hasSource=${!!source}`);
 
         if (!filename || !content || !encoding || !source || !sha256) {
-            socket.emit('file_upload_error', { message: 'Missing required fields: filename, content, encoding, source, sha256' });
+            socket.emit('ftp:file_ack', { success: false, filename, error: 'Missing required fields: filename, content, encoding, source, sha256' });
             return;
         }
 
         if (encoding !== 'base64') {
-            socket.emit('file_upload_error', { message: `Unsupported encoding: ${encoding}` });
+            socket.emit('ftp:file_ack', { success: false, filename, error: `Unsupported encoding: ${encoding}` });
             return;
         }
 
@@ -37,32 +37,29 @@ const fileHandler = {
             const computedHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
             if (computedHash !== sha256) {
                 console.error(`Hash mismatch for ${filename} from ${tenant_id}-${site_id}`);
-                socket.emit('file_upload_error', { message: 'File integrity check failed: SHA-256 mismatch' });
+                socket.emit('ftp:file_ack', { success: false, filename, error: 'File integrity check failed: SHA-256 mismatch' });
                 return;
             }
 
-            const siteFile = await SiteFile.create({
-                tenant_id,
-                site_id,
-                filename,
-                content: fileBuffer,
-                size: size ?? fileBuffer.length,
-                timestamp: timestamp ? new Date(timestamp) : new Date(),
-                source,
-                sha256,
-                category: resolveCategory(filename)
-            });
+            const siteFile = await SiteFile.findOneAndUpdate(
+                { tenant_id, site_id, filename },
+                {
+                    content: fileBuffer,
+                    size: size ?? fileBuffer.length,
+                    timestamp: timestamp ? new Date(timestamp) : new Date(),
+                    source,
+                    sha256,
+                    category: resolveCategory(filename)
+                },
+                { upsert: true, new: true }
+            );
 
             console.log(`File received from ${tenant_id}-${site_id}: ${filename} (${fileBuffer.length} bytes)`);
 
-            socket.emit('file_upload_ack', {
-                success: true,
-                file_id: siteFile._id,
-                filename
-            });
+            socket.emit('ftp:file_ack', { success: true, filename, file_id: siteFile._id });
         } catch (error) {
             console.error(`File upload error from ${tenant_id}-${site_id}:`, error);
-            socket.emit('file_upload_error', { message: 'Failed to store file' });
+            socket.emit('ftp:file_ack', { success: false, filename, error: 'Failed to store file' });
         }
     }
 };
