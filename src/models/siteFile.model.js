@@ -29,7 +29,7 @@ const siteFileSchema = new mongoose.Schema({
     },
     source: {
         type: String,
-        required: true
+        default: 'unknown'
     },
     sha256: {
         type: String,

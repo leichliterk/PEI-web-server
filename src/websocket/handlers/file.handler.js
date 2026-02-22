@@ -17,11 +17,12 @@ const fileHandler = {
      */
     async onFileUpload(socket, data) {
         const { tenant_id, site_id } = socket.siteData;
-        const { filename, content, encoding, size, timestamp, source, sha256 } = data;
-        console.log(`[FileHandler] ftp:file received from ${tenant_id}-${site_id}: filename=${filename}, encoding=${encoding}, size=${size}, hasContent=${!!content}, hasHash=${!!sha256}, hasSource=${!!source}`);
+        const { filename, content, encoding, size, timestamp, sha256 } = data;
+        const source = data.source || 'unknown';
+        console.log(`[FileHandler] ftp:file received from ${tenant_id}-${site_id}: filename=${filename}, encoding=${encoding}, size=${size}, hasContent=${!!content}, hasHash=${!!sha256}, hasSource=${!!data.source}`);
 
-        if (!filename || !content || !encoding || !source || !sha256) {
-            socket.emit('ftp:file_ack', { success: false, filename, error: 'Missing required fields: filename, content, encoding, source, sha256' });
+        if (!filename || !content || !encoding || !sha256) {
+            socket.emit('ftp:file_ack', { success: false, filename, error: 'Missing required fields: filename, content, encoding, sha256' });
             return;
         }
 
