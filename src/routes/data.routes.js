@@ -65,11 +65,11 @@ router.route('/site/uptime/:tenant_id/:site_id').get(getConnectionUptime);
  *
  ****************************************/
 
-// List files for a site
-router.route('/files/:tenant_id/:site_id').get(getSiteFiles);
-
 // Download a file by ID
 router.route('/files/download/:file_id').get(downloadFile);
+
+// List files for a site
+router.route('/files/:tenant_id/:site_id').get(getSiteFiles);
 
 
 

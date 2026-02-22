@@ -17,8 +17,9 @@ function initializeWebSocket(httpServer) {
             origin: "*",
             methods: ["GET", "POST"]
         },
-        pingTimeout: 30000,      // 30 seconds before considering disconnected
-        pingInterval: 10000      // Send ping every 10 seconds
+        pingTimeout: 30000,         // 30 seconds before considering disconnected
+        pingInterval: 10000,        // Send ping every 10 seconds
+        maxHttpBufferSize: 50 * 1024 * 1024  // 50MB max message size
     });
 
     // Namespace for desktop clients
@@ -33,7 +34,7 @@ function initializeWebSocket(httpServer) {
 
         socket.on('heartbeat', (data) => heartbeatHandler.onHeartbeat(socket, data));
         socket.on('status_update', (data) => connectionHandler.onStatusUpdate(socket, data));
-        socket.on('file_upload', (data) => fileHandler.onFileUpload(socket, data));
+        socket.on('ftp:file', (data) => fileHandler.onFileUpload(socket, data));
         socket.on('disconnect', (reason) => connectionHandler.onDisconnect(socket, reason));
     });
 
