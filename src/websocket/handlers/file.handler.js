@@ -17,7 +17,7 @@ const fileHandler = {
      */
     async onFileUpload(socket, data) {
         const { tenant_id, site_id } = socket.siteData;
-        const { filename, content, encoding, size, timestamp, sha256 } = data;
+        const { filename, content, encoding, size, modifiedAt, sha256 } = data;
         const source = data.source || 'unknown';
         console.log(`[FileHandler] ftp:file received from ${tenant_id}-${site_id}: filename=${filename}, encoding=${encoding}, size=${size}, hasContent=${!!content}, hasHash=${!!sha256}, hasSource=${!!data.source}`);
 
@@ -47,7 +47,7 @@ const fileHandler = {
                 {
                     content: fileBuffer,
                     size: size ?? fileBuffer.length,
-                    timestamp: timestamp ? new Date(timestamp) : new Date(),
+                    modifiedAt: modifiedAt ? new Date(modifiedAt) : new Date(),
                     source,
                     sha256,
                     category: resolveCategory(filename)

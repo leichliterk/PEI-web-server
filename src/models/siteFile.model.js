@@ -23,7 +23,7 @@ const siteFileSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    timestamp: {
+    modifiedAt: {
         type: Date,
         required: true
     },
