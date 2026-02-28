@@ -1,3 +1,5 @@
+const connectionManager = require('../services/connectionManager');
+
 // Track web client subscriptions: Map<socket.id, Set<tenant_id>>
 const clientSubscriptions = new Map();
 
@@ -31,6 +33,15 @@ const webHandler = {
             subscriptions.add(tenantIdNum);
             console.log(`Web client ${socket.id} subscribed to tenant ${tenantIdNum}`);
             socket.emit('subscribed', { tenant_id: tenantIdNum });
+
+            // Send a snapshot of all currently active connections for this tenant
+            const activeConnections = connectionManager.getConnectionsByTenant(tenantIdNum);
+            const snapshot = activeConnections.map(c => ({
+                site_id: c.site_id,
+                connection_status: true,
+                last_seen: c.lastHeartbeat.toISOString()
+            }));
+            socket.emit('site:status_snapshot', { tenant_id: tenantIdNum, sites: snapshot });
         }
     },
 
