@@ -15,11 +15,34 @@ const connectionHandler = {
 
         console.log(`Site connected: ${site_name} (${tenant_id}-${site_id})`);
 
-        // Register in connection manager
-        connectionManager.addConnection(socket);
+        // Register in connection manager; returns displaced entry if site was already connected
+        const displaced = connectionManager.addConnection(socket);
 
-        // Update database: set connection_status to true
-        await this.updateSiteConnectionStatus(tenant_id, site_id, true);
+        if (displaced) {
+            console.log(`Site ${tenant_id}-${site_id} reconnected; displacing socket ${displaced.socketId}`);
+
+            // Close the displaced socket's open session record
+            const duration = Date.now() - displaced.connectedAt.getTime();
+            await this.closeConnectionSession(displaced.sessionId, new Date(), duration, 'replaced_by_new_connection');
+
+            // Mark and disconnect the old socket; its onDisconnect will skip cleanup
+            const oldSocket = namespace.sockets.get(displaced.socketId);
+            if (oldSocket) {
+                oldSocket._displaced = true;
+                oldSocket.disconnect(true);
+            }
+        }
+
+        // Open a session record in MongoDB so it survives a server crash
+        const { connection_source } = socket.siteData;
+        const sessionId = await this.openConnectionSession(tenant_id, site_id, new Date(), connection_source);
+        connectionManager.setSessionId(socket, sessionId);
+
+        // Store the connect write promise on the socket so onDisconnect can await it.
+        // This prevents a rapid disconnect from issuing its false-write before this
+        // true-write completes, which would leave MongoDB permanently stuck as online.
+        socket._connectReady = this.updateSiteConnectionStatus(tenant_id, site_id, true);
+        await socket._connectReady;
 
         // Emit confirmation
         socket.emit('authenticated', {
@@ -39,6 +62,18 @@ const connectionHandler = {
 
         console.log(`Site disconnected: ${site_name} (${tenant_id}-${site_id}), reason: ${reason}`);
 
+        // If this socket was displaced by a new connection, its session was already
+        // saved and the map entry already belongs to the new socket — skip all cleanup.
+        if (socket._displaced) {
+            return;
+        }
+
+        // Ensure the connect write has completed before writing disconnect.
+        // Prevents out-of-order MongoDB writes on rapid connect/disconnect.
+        if (socket._connectReady) {
+            await socket._connectReady.catch(() => {});
+        }
+
         // Get connection info before removing
         const connInfo = connectionManager.getConnection(tenant_id, site_id);
 
@@ -48,23 +83,13 @@ const connectionHandler = {
         // Update database: set connection_status to false
         await this.updateSiteConnectionStatus(tenant_id, site_id, false);
 
-        // Save session record
+        // Close the session record opened on connect
         if (connInfo) {
             const sessionDuration = Date.now() - connInfo.connectedAt.getTime();
             console.log(`Session duration for ${site_name}: ${Math.round(sessionDuration / 1000)}s`);
 
-            await this.saveConnectionSession(tenant_id, site_id, connInfo.connectedAt, reason, sessionDuration, connInfo.connection_source);
+            await this.closeConnectionSession(connInfo.sessionId, new Date(), sessionDuration, reason);
         }
-    },
-
-    /**
-     * Handle manual status updates from desktop app
-     * @param {Object} socket - Socket.io socket instance
-     * @param {Object} data - Status data
-     */
-    async onStatusUpdate(socket, data) {
-        const { site_id, tenant_id } = socket.siteData;
-        console.log(`Status update from ${tenant_id}-${site_id}:`, data);
     },
 
     /**
@@ -74,9 +99,8 @@ const connectionHandler = {
      * @param {boolean} status
      */
     async updateSiteConnectionStatus(tenant_id, site_id, status) {
-        const lastSeen = new Date();
-
         try {
+            const lastSeen = new Date();
             await Tenant.findOneAndUpdate(
                 { tenant_id, 'sites.site_id': site_id },
                 {
@@ -87,10 +111,11 @@ const connectionHandler = {
                 }
             );
 
-            // Broadcast status update to subscribed web clients
+            // Broadcast status update to subscribed web clients using a fresh
+            // timestamp — more accurate than the pre-write lastSeen
             const webNs = getWebNamespace();
             if (webNs) {
-                webHandler.broadcastSiteStatus(webNs, tenant_id, site_id, status, lastSeen);
+                webHandler.broadcastSiteStatus(webNs, tenant_id, site_id, status, new Date());
             }
         } catch (error) {
             console.error('Failed to update connection status:', error);
@@ -98,28 +123,44 @@ const connectionHandler = {
     },
 
     /**
-     * Save connection session record for uptime tracking
-     * @param {number} tenant_id
-     * @param {number} site_id
-     * @param {Date} connectedAt
-     * @param {string} disconnectReason
-     * @param {number} durationMs
-     * @param {string} connectionSource
+     * Open a session record when a site connects.
+     * Leaving disconnected_at/duration_ms null means it survives a server crash
+     * and can be recovered on next startup.
+     * @returns {*} Mongoose ObjectId of the created session, or null on error
      */
-    async saveConnectionSession(tenant_id, site_id, connectedAt, disconnectReason, durationMs, connectionSource) {
+    async openConnectionSession(tenant_id, site_id, connectedAt, connectionSource) {
         try {
-            await ConnectionSession.create({
+            const session = await ConnectionSession.create({
                 tenant_id,
                 site_id,
                 connected_at: connectedAt,
-                disconnected_at: new Date(),
-                duration_ms: durationMs,
-                disconnect_reason: disconnectReason,
                 connection_source: connectionSource
             });
-            console.log(`Session saved for ${tenant_id}-${site_id}: ${Math.round(durationMs / 1000)}s`);
+            return session._id;
         } catch (error) {
-            console.error('Failed to save connection session:', error);
+            console.error('Failed to open connection session:', error);
+            return null;
+        }
+    },
+
+    /**
+     * Close a session record when a site disconnects (or is displaced).
+     * @param {*} sessionId - Mongoose ObjectId returned by openConnectionSession
+     * @param {Date} disconnectedAt
+     * @param {number} durationMs
+     * @param {string} disconnectReason
+     */
+    async closeConnectionSession(sessionId, disconnectedAt, durationMs, disconnectReason) {
+        if (!sessionId) return;
+        try {
+            await ConnectionSession.findByIdAndUpdate(sessionId, {
+                disconnected_at: disconnectedAt,
+                duration_ms: durationMs,
+                disconnect_reason: disconnectReason
+            });
+            console.log(`Session closed: ${Math.round(durationMs / 1000)}s (${disconnectReason})`);
+        } catch (error) {
+            console.error('Failed to close connection session:', error);
         }
     }
 };

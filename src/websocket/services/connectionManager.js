@@ -10,14 +10,35 @@ const connectionManager = {
         const { site_id, tenant_id, connection_source } = socket.siteData;
         const key = `${tenant_id}-${site_id}`;
 
+        // Return any existing entry before overwriting so the caller can
+        // clean up the displaced socket rather than leaving it as a ghost.
+        const displaced = activeConnections.get(key) || null;
+
         activeConnections.set(key, {
             socketId: socket.id,
             site_id,
             tenant_id,
             connection_source,
             connectedAt: new Date(),
-            lastHeartbeat: new Date()
+            sessionId: null  // set via setSessionId once the DB record is created
         });
+
+        return displaced;
+    },
+
+    /**
+     * Store the MongoDB session _id for the active connection.
+     * Called after openConnectionSession resolves.
+     * @param {Object} socket
+     * @param {*} sessionId - Mongoose ObjectId
+     */
+    setSessionId(socket, sessionId) {
+        const { site_id, tenant_id } = socket.siteData;
+        const key = `${tenant_id}-${site_id}`;
+        const entry = activeConnections.get(key);
+        if (entry && entry.socketId === socket.id) {
+            entry.sessionId = sessionId;
+        }
     },
 
     /**
@@ -28,21 +49,14 @@ const connectionManager = {
     removeConnection(socket) {
         const { site_id, tenant_id } = socket.siteData;
         const key = `${tenant_id}-${site_id}`;
-        return activeConnections.delete(key);
-    },
+        const entry = activeConnections.get(key);
 
-    /**
-     * Update heartbeat timestamp for a connection
-     * @param {Object} socket - Socket.io socket instance
-     */
-    updateHeartbeat(socket) {
-        const { site_id, tenant_id } = socket.siteData;
-        const key = `${tenant_id}-${site_id}`;
-        const conn = activeConnections.get(key);
-
-        if (conn) {
-            conn.lastHeartbeat = new Date();
+        // Only delete if this socket is still the registered one.
+        // Guards against a displaced old socket wiping the new socket's entry.
+        if (entry && entry.socketId === socket.id) {
+            return activeConnections.delete(key);
         }
+        return false;
     },
 
     /**

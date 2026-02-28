@@ -1,7 +1,4 @@
-const connectionManager = require('../services/connectionManager');
-
-// Track web client subscriptions: Map<socket.id, Set<tenant_id>>
-const clientSubscriptions = new Map();
+const Tenant = require('../../models/tenant.model');
 
 const webHandler = {
     /**
@@ -10,7 +7,6 @@ const webHandler = {
      */
     onConnect(socket) {
         console.log(`Web client connected: ${socket.id}`);
-        clientSubscriptions.set(socket.id, new Set());
     },
 
     /**
@@ -18,7 +14,7 @@ const webHandler = {
      * @param {Object} socket - Socket.io socket instance
      * @param {Object} data - Subscription data { tenant_id }
      */
-    onSubscribeTenant(socket, data) {
+    async onSubscribeTenant(socket, data) {
         const { tenant_id } = data;
 
         if (!tenant_id) {
@@ -27,21 +23,27 @@ const webHandler = {
         }
 
         const tenantIdNum = parseInt(tenant_id);
-        const subscriptions = clientSubscriptions.get(socket.id);
+        const room = `tenant:${tenantIdNum}`;
 
-        if (subscriptions) {
-            subscriptions.add(tenantIdNum);
-            console.log(`Web client ${socket.id} subscribed to tenant ${tenantIdNum}`);
-            socket.emit('subscribed', { tenant_id: tenantIdNum });
+        socket.join(room);
+        console.log(`Web client ${socket.id} subscribed to tenant ${tenantIdNum}`);
+        socket.emit('subscribed', { tenant_id: tenantIdNum });
 
-            // Send a snapshot of all currently active connections for this tenant
-            const activeConnections = connectionManager.getConnectionsByTenant(tenantIdNum);
-            const snapshot = activeConnections.map(c => ({
-                site_id: c.site_id,
-                connection_status: true,
-                last_seen: c.lastHeartbeat.toISOString()
-            }));
+        // Send snapshot from MongoDB — shared state across all server instances
+        try {
+            const tenant = await Tenant.findOne({ tenant_id: tenantIdNum });
+            const now = new Date().toISOString();
+            const snapshot = tenant
+                ? tenant.sites.map(s => ({
+                    site_id: s.site_id,
+                    connection_status: s.connection_status === true,
+                    // For online sites, last_seen is now — they're demonstrably alive
+                    last_seen: s.connection_status === true ? now : (s.last_seen ? s.last_seen.toISOString() : null)
+                }))
+                : [];
             socket.emit('site:status_snapshot', { tenant_id: tenantIdNum, sites: snapshot });
+        } catch (error) {
+            console.error(`Failed to send snapshot for tenant ${tenantIdNum}:`, error);
         }
     },
 
@@ -53,12 +55,8 @@ const webHandler = {
     onUnsubscribeTenant(socket, data) {
         const { tenant_id } = data;
         const tenantIdNum = parseInt(tenant_id);
-        const subscriptions = clientSubscriptions.get(socket.id);
-
-        if (subscriptions) {
-            subscriptions.delete(tenantIdNum);
-            console.log(`Web client ${socket.id} unsubscribed from tenant ${tenantIdNum}`);
-        }
+        socket.leave(`tenant:${tenantIdNum}`);
+        console.log(`Web client ${socket.id} unsubscribed from tenant ${tenantIdNum}`);
     },
 
     /**
@@ -68,7 +66,6 @@ const webHandler = {
      */
     onDisconnect(socket, reason) {
         console.log(`Web client disconnected: ${socket.id}, reason: ${reason}`);
-        clientSubscriptions.delete(socket.id);
     },
 
     /**
@@ -86,17 +83,7 @@ const webHandler = {
             connection_status,
             last_seen: last_seen.toISOString()
         };
-
-        // Find all sockets subscribed to this tenant
-        for (const [socketId, subscriptions] of clientSubscriptions.entries()) {
-            if (subscriptions.has(tenant_id)) {
-                const socket = webNamespace.sockets.get(socketId);
-                if (socket) {
-                    socket.emit('site_status_update', message);
-                }
-            }
-        }
-
+        webNamespace.to(`tenant:${tenant_id}`).emit('site_status_update', message);
         console.log(`Broadcasted status update for site ${site_id} to tenant ${tenant_id} subscribers`);
     }
 };

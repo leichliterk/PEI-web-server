@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const path = require('path');
 const SiteFile = require('../../models/siteFile.model');
+const Tenant = require('../../models/tenant.model');
 
 function resolveCategory(filename) {
     if (filename.includes('AccountingLog')) return 'accounting_log';
@@ -56,6 +57,13 @@ const fileHandler = {
             );
 
             console.log(`File received from ${tenant_id}-${site_id}: ${filename} (${fileBuffer.length} bytes)`);
+
+            // Refresh last_seen in MongoDB so HTTP consumers don't see a stale value
+            // (file uploads are the only activity signal after connect, now that heartbeats are gone)
+            await Tenant.findOneAndUpdate(
+                { tenant_id, 'sites.site_id': site_id },
+                { $set: { 'sites.$.last_seen': new Date() } }
+            );
 
             socket.emit('ftp:file_ack', { success: true, filename, file_id: siteFile._id });
         } catch (error) {
