@@ -73,6 +73,15 @@ const connectionManager = {
     isConnected(tenant_id, site_id) {
         const key = `${tenant_id}-${site_id}`;
         return activeConnections.has(key);
+    },
+
+    /**
+     * Get all active connections for a tenant
+     * @param {number} tenant_id
+     * @returns {Array}
+     */
+    getConnectionsByTenant(tenant_id) {
+        return Array.from(activeConnections.values()).filter(c => c.tenant_id === tenant_id);
     }
 };
 
