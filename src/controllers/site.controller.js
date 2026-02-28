@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 const Site = require("../models/site.model");
 const Tenant = require("../models/tenant.model");
 const ConnectionSession = require("../models/connectionSession.model");
-const connectionManager = require("../websocket/services/connectionManager");
 
 
 const updateSiteName = asyncHandler(async (req, res, next) => {
@@ -91,13 +90,14 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
         sessions.forEach(session => {
             // Clamp session start to the query window
             const sessionStart = session.connected_at < startDate ? startDate : session.connected_at;
-            const sessionEnd = session.disconnected_at > now ? now : session.disconnected_at;
+            // null disconnected_at means the session is still open; treat as now
+            const sessionEnd = (!session.disconnected_at || session.disconnected_at > now) ? now : session.disconnected_at;
             totalUptimeMs += sessionEnd.getTime() - sessionStart.getTime();
         });
 
         const uptimePercentage = (totalUptimeMs / totalTimeMs) * 100;
 
-        // Build sessions array from completed sessions
+        // Build sessions array; open sessions (disconnected_at: null) are included naturally
         const sessionList = sessions.map(s => ({
             connected_at: s.connected_at,
             disconnected_at: s.disconnected_at,
@@ -105,18 +105,6 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
             disconnect_reason: s.disconnect_reason,
             connection_source: s.connection_source
         }));
-
-        // Check for active session and include if present
-        const activeConnection = connectionManager.getConnection(tenantIdNum, siteIdNum);
-        if (activeConnection) {
-            sessionList.push({
-                connected_at: activeConnection.connectedAt,
-                disconnected_at: null,
-                duration_ms: null,
-                disconnect_reason: null,
-                connection_source: activeConnection.connection_source
-            });
-        }
 
         return res.status(200).json({
             tenant_id: tenantIdNum,
