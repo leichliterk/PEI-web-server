@@ -6,7 +6,7 @@ const crypto = require('crypto');
  * Validates API key, site_id, and tenant_id from handshake auth
  */
 async function authMiddleware(socket, next) {
-    const { api_key, site_id, tenant_id, connection_source } = socket.handshake.auth;
+    const { api_key, site_id, tenant_id, connection_source, app_version } = socket.handshake.auth;
 
     if (!api_key || !site_id || !tenant_id) {
         return next(new Error('Missing authentication credentials'));
@@ -40,6 +40,14 @@ async function authMiddleware(socket, next) {
             site_name: site.name,
             connection_source: connection_source || 'unknown'
         };
+
+        // Update app_version on the site if provided
+        if (app_version) {
+            await Tenant.findOneAndUpdate(
+                { tenant_id: parseInt(tenant_id), 'sites.site_id': parseInt(site_id) },
+                { $set: { 'sites.$.app_version': app_version } }
+            );
+        }
 
         next();
     } catch (error) {
