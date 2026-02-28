@@ -1,7 +1,8 @@
 const { Server } = require('socket.io');
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { Redis } = require('ioredis');
 const authMiddleware = require('./middleware/auth.middleware');
 const connectionHandler = require('./handlers/connection.handler');
-const heartbeatHandler = require('./handlers/heartbeat.handler');
 const webHandler = require('./handlers/web.handler');
 const fileHandler = require('./handlers/file.handler');
 const namespaceRegistry = require('./namespaceRegistry');
@@ -22,6 +23,16 @@ function initializeWebSocket(httpServer) {
         maxHttpBufferSize: 50 * 1024 * 1024  // 50MB max message size
     });
 
+    // Enable Redis adapter for multi-instance support if REDIS_URL is set
+    if (process.env.REDIS_URL) {
+        const pubClient = new Redis(process.env.REDIS_URL);
+        const subClient = pubClient.duplicate();
+        io.adapter(createAdapter(pubClient, subClient));
+        console.log('Socket.io Redis adapter enabled');
+    } else {
+        console.log('Socket.io running in single-instance mode (no REDIS_URL set)');
+    }
+
     // Namespace for desktop clients
     const desktopNamespace = io.of('/api/data/desktop');
 
@@ -32,8 +43,6 @@ function initializeWebSocket(httpServer) {
     desktopNamespace.on('connection', (socket) => {
         connectionHandler.onConnect(socket, desktopNamespace);
 
-        socket.on('heartbeat', (data) => heartbeatHandler.onHeartbeat(socket, data));
-        socket.on('status_update', (data) => connectionHandler.onStatusUpdate(socket, data));
         socket.on('ftp:file', (data) => fileHandler.onFileUpload(socket, data));
         socket.on('disconnect', (reason) => connectionHandler.onDisconnect(socket, reason));
     });

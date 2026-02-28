@@ -17,11 +17,11 @@ const connectionSessionSchema = new mongoose.Schema({
     },
     disconnected_at: {
         type: Date,
-        required: true
+        default: null
     },
     duration_ms: {
         type: Number,
-        required: true
+        default: null
     },
     disconnect_reason: {
         type: String,
