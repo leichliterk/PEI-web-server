@@ -5,6 +5,13 @@ const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require(
 const { updateSiteName, getConnectionUptime } = require('../controllers/site.controller');
 const { getTenantById } = require('../controllers/tenant.controller');
 const { getSiteFiles, downloadFile } = require('../controllers/file.controller');
+const {
+    getUserNotifications,
+    getSiteNotifications,
+    markNotificationRead,
+    markAllUserNotificationsRead,
+    markAllSiteNotificationsRead
+} = require('../controllers/notification.controller');
 
 const router = express.Router();
 
@@ -70,6 +77,29 @@ router.route('/files/download/:file_id').get(downloadFile);
 
 // List files for a site
 router.route('/files/:tenant_id/:site_id').get(getSiteFiles);
+
+
+
+/****************************************
+ *
+ *   Notification routes
+ *
+ ****************************************/
+
+// List notifications for a user
+router.route('/notifications/user/:auth0_id').get(getUserNotifications);
+
+// Mark all notifications for a user as read
+router.route('/notifications/user/:auth0_id/read-all').post(markAllUserNotificationsRead);
+
+// List notifications for a site
+router.route('/notifications/site/:tenant_id/:site_id').get(getSiteNotifications);
+
+// Mark all notifications for a site as read
+router.route('/notifications/site/:tenant_id/:site_id/read-all').post(markAllSiteNotificationsRead);
+
+// Mark a single notification as read (must come before /:id catch-all if added later)
+router.route('/notifications/:id/read').patch(markNotificationRead);
 
 
 

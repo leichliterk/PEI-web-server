@@ -37,6 +37,16 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: false
     },
+
+    // Tenant and site access
+    tenant_id: {
+        type: Number,
+        default: null
+    },
+    site_ids: {
+        type: [Number],
+        default: []    // empty = access to all sites in the tenant
+    }
 }, { timestamps: true } );
 
 userSchema.set('timestamps', true);

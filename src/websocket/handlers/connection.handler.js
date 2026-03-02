@@ -2,6 +2,7 @@ const Tenant = require('../../models/tenant.model');
 const ConnectionSession = require('../../models/connectionSession.model');
 const connectionManager = require('../services/connectionManager');
 const webHandler = require('./web.handler');
+const notificationService = require('../services/notificationService');
 const { getWebNamespace } = require('../namespaceRegistry');
 
 const connectionHandler = {
@@ -41,8 +42,11 @@ const connectionHandler = {
         // Store the connect write promise on the socket so onDisconnect can await it.
         // This prevents a rapid disconnect from issuing its false-write before this
         // true-write completes, which would leave MongoDB permanently stuck as online.
-        socket._connectReady = this.updateSiteConnectionStatus(tenant_id, site_id, true);
+        socket._connectReady = this.updateSiteConnectionStatus(tenant_id, site_id, true, site_name);
         await socket._connectReady;
+
+        // Deliver any queued notifications for this site
+        await notificationService.deliverPendingSiteNotifications(socket, tenant_id, site_id);
 
         // Emit confirmation
         socket.emit('authenticated', {
@@ -81,7 +85,7 @@ const connectionHandler = {
         connectionManager.removeConnection(socket);
 
         // Update database: set connection_status to false
-        await this.updateSiteConnectionStatus(tenant_id, site_id, false);
+        await this.updateSiteConnectionStatus(tenant_id, site_id, false, site_name);
 
         // Close the session record opened on connect
         if (connInfo) {
@@ -98,7 +102,7 @@ const connectionHandler = {
      * @param {number} site_id
      * @param {boolean} status
      */
-    async updateSiteConnectionStatus(tenant_id, site_id, status) {
+    async updateSiteConnectionStatus(tenant_id, site_id, status, site_name) {
         try {
             const lastSeen = new Date();
             await Tenant.findOneAndUpdate(
@@ -117,6 +121,11 @@ const connectionHandler = {
             if (webNs) {
                 webHandler.broadcastSiteStatus(webNs, tenant_id, site_id, status, new Date());
             }
+
+            // Notify users with access to this site — fire-and-forget so it
+            // doesn't delay the connect/disconnect acknowledgement
+            notificationService.notifyUsersOfSiteStatus(tenant_id, site_id, site_name, status)
+                .catch(err => console.error('Failed to send site status notifications:', err));
         } catch (error) {
             console.error('Failed to update connection status:', error);
         }

@@ -35,6 +35,7 @@ function initializeWebSocket(httpServer) {
 
     // Namespace for desktop clients
     const desktopNamespace = io.of('/api/data/desktop');
+    namespaceRegistry.setDesktopNamespace(desktopNamespace);
 
     // Apply authentication middleware
     desktopNamespace.use(authMiddleware);
@@ -57,6 +58,8 @@ function initializeWebSocket(httpServer) {
 
         socket.on('subscribe_tenant', (data) => webHandler.onSubscribeTenant(socket, data));
         socket.on('unsubscribe_tenant', (data) => webHandler.onUnsubscribeTenant(socket, data));
+        socket.on('user:identify', (data) => webHandler.onUserIdentify(socket, data));
+        socket.on('notification:read', (data) => webHandler.onNotificationRead(socket, data));
         socket.on('disconnect', (reason) => webHandler.onDisconnect(socket, reason));
     });
 
