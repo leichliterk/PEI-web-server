@@ -1,4 +1,6 @@
 const Tenant = require('../../models/tenant.model');
+const Notification = require('../../models/notification.model');
+const notificationService = require('../services/notificationService');
 
 const webHandler = {
     /**
@@ -66,6 +68,59 @@ const webHandler = {
      */
     onDisconnect(socket, reason) {
         console.log(`Web client disconnected: ${socket.id}, reason: ${reason}`);
+    },
+
+    /**
+     * Handle user identification from a web (or future mobile) client.
+     * Joins the per-user room and delivers any pending notifications.
+     * @param {Object} socket
+     * @param {Object} data - { auth0_id }
+     */
+    async onUserIdentify(socket, data) {
+        const { auth0_id } = data || {};
+
+        if (!auth0_id) {
+            socket.emit('error', { message: 'auth0_id is required' });
+            return;
+        }
+
+        socket.auth0_id = auth0_id;
+        socket.join(`user:${auth0_id}`);
+        console.log(`Web client ${socket.id} identified as user ${auth0_id}`);
+
+        await notificationService.deliverPendingUserNotifications(socket, auth0_id);
+    },
+
+    /**
+     * Handle a web client marking a notification as read.
+     * @param {Object} socket
+     * @param {Object} data - { notification_id }
+     */
+    async onNotificationRead(socket, data) {
+        const { notification_id } = data || {};
+
+        if (!notification_id) {
+            socket.emit('error', { message: 'notification_id is required' });
+            return;
+        }
+
+        try {
+            const result = await Notification.findOneAndUpdate(
+                {
+                    _id: notification_id,
+                    recipient_type: 'user',
+                    auth0_id: socket.auth0_id,  // ensure the notification belongs to this user
+                    read_at: null
+                },
+                { read_at: new Date() }
+            );
+
+            if (!result) {
+                socket.emit('error', { message: 'Notification not found or already read' });
+            }
+        } catch (error) {
+            console.error('Failed to mark notification as read:', error);
+        }
     },
 
     /**
