@@ -85,13 +85,18 @@ const notificationService = {
 
         // Deliver to all connected sessions for this user
         const webNs = getWebNamespace();
-        if (webNs) {
-            const room = `user:${auth0_id}`;
-            const sockets = await webNs.in(room).fetchSockets();
-            if (sockets.length > 0) {
-                webNs.to(room).emit('notification', format(notification));
-                await Notification.findByIdAndUpdate(notification._id, { delivered_at: new Date() });
-            }
+        if (!webNs) {
+            console.warn(`[notificationService] sendToUser: webNamespace not registered`);
+            return notification;
+        }
+
+        const room = `user:${auth0_id}`;
+        const sockets = await webNs.in(room).fetchSockets();
+        console.log(`[notificationService] sendToUser: room="${room}" fetchSockets=${sockets.length}`);
+        if (sockets.length > 0) {
+            webNs.to(room).emit('notification', format(notification));
+            await Notification.findByIdAndUpdate(notification._id, { delivered_at: new Date() });
+            console.log(`[notificationService] sendToUser: emitted notification ${notification._id} to ${room}`);
         }
 
         return notification;
@@ -171,6 +176,8 @@ const notificationService = {
                 { site_ids: { $size: 0 } }       // empty array = access to all sites in tenant
             ]
         }).select('auth0_id');
+
+        console.log(`[notificationService] notifyUsersOfSiteStatus: tenant=${tenant_id} site=${site_id} status=${status} → found ${users.length} user(s): ${users.map(u => u.auth0_id).join(', ') || '(none)'}`);
 
         if (users.length === 0) return;
 
