@@ -86,7 +86,7 @@ const webHandler = {
 
         socket.auth0_id = auth0_id;
         socket.join(`user:${auth0_id}`);
-        console.log(`Web client ${socket.id} identified as user ${auth0_id} — rooms: ${[...socket.rooms].join(', ')}`);
+        console.log(`Web client ${socket.id} identified as user ${auth0_id}`);
 
         await notificationService.deliverPendingUserNotifications(socket, auth0_id);
     },
