@@ -1,7 +1,106 @@
 const crypto = require('crypto');
 const path = require('path');
 const SiteFile = require('../../models/siteFile.model');
+const SiteReading = require('../../models/siteReading.model');
+const SiteAccounting = require('../../models/siteAccounting.model');
 const Tenant = require('../../models/tenant.model');
+
+/**
+ * Parse a LineTrendGraph file buffer into an array of reading objects.
+ * Format: space-separated; time (HH:MM:SS) and date (MM-DD-YYYY) are two separate tokens.
+ * Example row: 00:04:23 03-02-2026 368.96 1549.11 ...
+ */
+function parseFlareData(buffer) {
+    const lines = buffer.toString('utf8').split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return [];
+
+    const readings = [];
+    for (const line of lines.slice(1)) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 9) continue;
+
+        const [time, date, flr_flow, flr_temp_50x, flr_temp_502, inlet_pressure, o2, ch4, flr_sdv] = parts;
+        const [month, day, year] = date.split('-');
+        const timestamp = new Date(`${year}-${month}-${day}T${time}Z`);
+        if (isNaN(timestamp.getTime())) continue;
+
+        readings.push({
+            timestamp,
+            date_key:       `${year}-${month}-${day}`,
+            flr_flow:       parseFloat(flr_flow),
+            flr_temp_50x:   parseFloat(flr_temp_50x),
+            flr_temp_502:   parseFloat(flr_temp_502),
+            inlet_pressure: parseFloat(inlet_pressure),
+            o2:             parseFloat(o2),
+            ch4:            parseFloat(ch4),
+            flr_sdv:        parseFloat(flr_sdv)
+        });
+    }
+    return readings;
+}
+
+/**
+ * Parse an AccountingLog file buffer into an array of reading objects.
+ * Format: tab-separated; the Date column contains "HH:MM:SS MM-DD-YYYY" as a single field.
+ * Example row: 00:04:23 03-07-2026\t372.94\t1549.35\t...
+ */
+function parseAccountingLog(buffer) {
+    const lines = buffer.toString('utf8').split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return [];
+
+    const readings = [];
+    for (const line of lines.slice(1)) {
+        const cols = line.split('\t');
+        if (cols.length < 8) continue;
+
+        const dateParts = cols[0].trim().split(/\s+/);
+        if (dateParts.length < 2) continue;
+
+        const [time, date] = dateParts;
+        const [month, day, year] = date.split('-');
+        const timestamp = new Date(`${year}-${month}-${day}T${time}Z`);
+        if (isNaN(timestamp.getTime())) continue;
+
+        readings.push({
+            timestamp,
+            date_key:       `${year}-${month}-${day}`,
+            flr_flow:       parseFloat(cols[1]),
+            flr_temp_50x:   parseFloat(cols[2]),
+            flr_temp_502:   parseFloat(cols[3]),
+            inlet_pressure: parseFloat(cols[4]),
+            o2:             parseFloat(cols[5]),
+            ch4:            parseFloat(cols[6]),
+            flr_sdv:        parseFloat(cols[7])
+        });
+    }
+    return readings;
+}
+
+/**
+ * Deduplicate against existing records in the time range, then bulk-insert new rows.
+ * Returns the number of rows inserted.
+ *
+ * @param {mongoose.Model} Model - The target time-series model (SiteReading or SiteAccounting)
+ */
+async function storeReadings(Model, tenant_id, site_id, readings) {
+    if (readings.length === 0) return 0;
+
+    const minTs = new Date(Math.min(...readings.map(r => r.timestamp)));
+    const maxTs = new Date(Math.max(...readings.map(r => r.timestamp)));
+
+    const existing = await Model.find(
+        { tenant_id, site_id, timestamp: { $gte: minTs, $lte: maxTs } }
+    ).select('timestamp');
+
+    const existingSet = new Set(existing.map(r => r.timestamp.getTime()));
+    const newReadings = readings
+        .filter(r => !existingSet.has(r.timestamp.getTime()))
+        .map(r => ({ ...r, tenant_id, site_id }));
+
+    if (newReadings.length === 0) return 0;
+    await Model.insertMany(newReadings, { ordered: false });
+    return newReadings.length;
+}
 
 function resolveCategory(filename) {
     if (filename.includes('AccountingLog')) return 'accounting_log';
@@ -64,6 +163,23 @@ const fileHandler = {
                 { tenant_id, 'sites.site_id': site_id },
                 { $set: { 'sites.$.last_seen': new Date() } }
             );
+
+            // Parse and store time-series readings (fire-and-forget)
+            if (siteFile.category === 'flare_data') {
+                const readings = parseFlareData(fileBuffer);
+                storeReadings(SiteReading, tenant_id, site_id, readings)
+                    .then(count => {
+                        if (count > 0) console.log(`Stored ${count} new reading(s) from ${filename} for ${tenant_id}-${site_id}`);
+                    })
+                    .catch(err => console.error(`Failed to store readings from ${filename}:`, err));
+            } else if (siteFile.category === 'accounting_log') {
+                const readings = parseAccountingLog(fileBuffer);
+                storeReadings(SiteAccounting, tenant_id, site_id, readings)
+                    .then(count => {
+                        if (count > 0) console.log(`Stored ${count} new accounting record(s) from ${filename} for ${tenant_id}-${site_id}`);
+                    })
+                    .catch(err => console.error(`Failed to store accounting records from ${filename}:`, err));
+            }
 
             socket.emit('ftp:file_ack', { success: true, filename, file_id: siteFile._id });
         } catch (error) {
