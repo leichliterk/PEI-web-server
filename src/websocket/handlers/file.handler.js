@@ -4,6 +4,7 @@ const SiteFile = require('../../models/siteFile.model');
 const SiteReading = require('../../models/siteReading.model');
 const SiteAccounting = require('../../models/siteAccounting.model');
 const Tenant = require('../../models/tenant.model');
+const { getWebNamespace } = require('../namespaceRegistry');
 
 /**
  * Parse a LineTrendGraph file buffer into an array of reading objects.
@@ -102,6 +103,23 @@ async function storeReadings(Model, tenant_id, site_id, readings) {
     return newReadings.length;
 }
 
+/**
+ * Emit the most recent reading from a parsed batch to all web clients subscribed to the tenant.
+ * Readings are in chronological file order, so the last entry is the most recent.
+ *
+ * @param {number} tenant_id
+ * @param {number} site_id
+ * @param {'flare_data'|'accounting_log'} type
+ * @param {Array} readings
+ */
+function broadcastLatestReading(tenant_id, site_id, type, readings) {
+    const webNs = getWebNamespace();
+    if (!webNs || readings.length === 0) return;
+
+    const latest = readings[readings.length - 1];
+    webNs.to(`tenant:${tenant_id}`).emit('site:reading', { tenant_id, site_id, type, reading: latest });
+}
+
 function resolveCategory(filename) {
     if (filename.includes('AccountingLog')) return 'accounting_log';
     if (filename.includes('LineTrendGraph')) return 'flare_data';
@@ -169,14 +187,20 @@ const fileHandler = {
                 const readings = parseFlareData(fileBuffer);
                 storeReadings(SiteReading, tenant_id, site_id, readings)
                     .then(count => {
-                        if (count > 0) console.log(`Stored ${count} new reading(s) from ${filename} for ${tenant_id}-${site_id}`);
+                        if (count > 0) {
+                            console.log(`Stored ${count} new reading(s) from ${filename} for ${tenant_id}-${site_id}`);
+                            broadcastLatestReading(tenant_id, site_id, 'flare_data', readings);
+                        }
                     })
                     .catch(err => console.error(`Failed to store readings from ${filename}:`, err));
             } else if (siteFile.category === 'accounting_log') {
                 const readings = parseAccountingLog(fileBuffer);
                 storeReadings(SiteAccounting, tenant_id, site_id, readings)
                     .then(count => {
-                        if (count > 0) console.log(`Stored ${count} new accounting record(s) from ${filename} for ${tenant_id}-${site_id}`);
+                        if (count > 0) {
+                            console.log(`Stored ${count} new accounting record(s) from ${filename} for ${tenant_id}-${site_id}`);
+                            broadcastLatestReading(tenant_id, site_id, 'accounting_log', readings);
+                        }
                     })
                     .catch(err => console.error(`Failed to store accounting records from ${filename}:`, err));
             }
