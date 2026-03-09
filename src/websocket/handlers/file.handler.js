@@ -13,6 +13,7 @@ const { getWebNamespace } = require('../namespaceRegistry');
  */
 function parseFlareData(buffer) {
     const lines = buffer.toString('utf8').split(/\r?\n/).filter(l => l.trim());
+    console.log(`[parseFlareData] ${lines.length} non-empty lines; first 2:`, lines.slice(0, 2).map(l => JSON.stringify(l)));
     if (lines.length < 2) return [];
 
     const readings = [];
@@ -47,6 +48,7 @@ function parseFlareData(buffer) {
  */
 function parseAccountingLog(buffer) {
     const lines = buffer.toString('utf8').split(/\r?\n/).filter(l => l.trim());
+    console.log(`[parseAccountingLog] ${lines.length} non-empty lines; first 2:`, lines.slice(0, 2).map(l => JSON.stringify(l)));
     if (lines.length < 2) return [];
 
     const readings = [];
