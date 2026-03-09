@@ -15,6 +15,8 @@ const siteReadingSchema = new mongoose.Schema({
     o2:             { type: Number },
     ch4:            { type: Number },
     flr_sdv:        { type: Number }
-}, { collection: 'sitereadings' });
+// strict: false allows dynamic measurement columns — LineTrendGraph files contain
+// site-specific PLC tag names that vary per site configuration.
+}, { collection: 'sitereadings', strict: false });
 
 module.exports = mongoose.model('SiteReading', siteReadingSchema);
