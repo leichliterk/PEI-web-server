@@ -173,7 +173,7 @@ const fileHandler = {
                 { upsert: true, new: true }
             );
 
-            console.log(`File received from ${tenant_id}-${site_id}: ${filename} (${fileBuffer.length} bytes)`);
+            console.log(`File received from ${tenant_id}-${site_id}: ${filename} (${fileBuffer.length} bytes), category=${siteFile.category}`);
 
             // Refresh last_seen in MongoDB so HTTP consumers don't see a stale value
             // (file uploads are the only activity signal after connect, now that heartbeats are gone)
@@ -185,24 +185,22 @@ const fileHandler = {
             // Parse and store time-series readings (fire-and-forget)
             if (siteFile.category === 'flare_data') {
                 const readings = parseFlareData(fileBuffer);
+                console.log(`[readings] parseFlareData: ${readings.length} row(s) parsed from ${filename}`);
                 storeReadings(SiteReading, tenant_id, site_id, readings)
                     .then(count => {
-                        if (count > 0) {
-                            console.log(`Stored ${count} new reading(s) from ${filename} for ${tenant_id}-${site_id}`);
-                            broadcastLatestReading(tenant_id, site_id, 'flare_data', readings);
-                        }
+                        console.log(`[readings] storeReadings: ${count} new row(s) inserted (${readings.length - count} duplicate(s)) for ${filename}`);
+                        if (count > 0) broadcastLatestReading(tenant_id, site_id, 'flare_data', readings);
                     })
-                    .catch(err => console.error(`Failed to store readings from ${filename}:`, err));
+                    .catch(err => console.error(`[readings] Failed to store readings from ${filename}:`, err));
             } else if (siteFile.category === 'accounting_log') {
                 const readings = parseAccountingLog(fileBuffer);
+                console.log(`[readings] parseAccountingLog: ${readings.length} row(s) parsed from ${filename}`);
                 storeReadings(SiteAccounting, tenant_id, site_id, readings)
                     .then(count => {
-                        if (count > 0) {
-                            console.log(`Stored ${count} new accounting record(s) from ${filename} for ${tenant_id}-${site_id}`);
-                            broadcastLatestReading(tenant_id, site_id, 'accounting_log', readings);
-                        }
+                        console.log(`[readings] storeReadings: ${count} new row(s) inserted (${readings.length - count} duplicate(s)) for ${filename}`);
+                        if (count > 0) broadcastLatestReading(tenant_id, site_id, 'accounting_log', readings);
                     })
-                    .catch(err => console.error(`Failed to store accounting records from ${filename}:`, err));
+                    .catch(err => console.error(`[readings] Failed to store accounting records from ${filename}:`, err));
             }
 
             socket.emit('ftp:file_ack', { success: true, filename, file_id: siteFile._id });
