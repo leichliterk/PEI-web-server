@@ -56,4 +56,47 @@ const getSiteReadings = asyncHandler((req, res) => getReadings(SiteReading, req,
 
 const getSiteAccountingData = asyncHandler((req, res) => getReadings(SiteAccounting, req, res));
 
-module.exports = { getSiteReadings, getSiteAccountingData };
+/**
+ * GET /accounting/:tenant_id/latest
+ * Returns the most recent accounting log entry for each site in the tenant.
+ */
+const getLatestSiteData = asyncHandler(async (req, res) => {
+    const { tenant_id } = req.params;
+    const tenantIdNum = parseInt(tenant_id);
+
+    if (isNaN(tenantIdNum)) {
+        return res.status(400).json({ message: 'tenant_id must be an integer.' });
+    }
+
+    const results = await SiteAccounting.aggregate([
+        { $match: { tenant_id: tenantIdNum } },
+        { $sort:  { timestamp: -1 } },
+        { $group: {
+            _id:            '$site_id',
+            timestamp:      { $first: '$timestamp' },
+            flr_flow:       { $first: '$flr_flow' },
+            ch4:            { $first: '$ch4' },
+            inlet_pressure: { $first: '$inlet_pressure' },
+            o2:             { $first: '$o2' },
+            flr_sdv:        { $first: '$flr_sdv' }
+        }},
+        { $project: {
+            _id:            0,
+            site_id:        '$_id',
+            timestamp:      1,
+            flr_flow:       1,
+            ch4:            1,
+            inlet_pressure: 1,
+            o2:             1,
+            flr_sdv:        1
+        }},
+        { $sort: { site_id: 1 } }
+    ]);
+
+    return res.status(200).json({
+        tenant_id: tenantIdNum,
+        sites: results
+    });
+});
+
+module.exports = { getSiteReadings, getSiteAccountingData, getLatestSiteData };

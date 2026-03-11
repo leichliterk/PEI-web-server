@@ -138,6 +138,27 @@ async function storeReadings(Model, tenant_id, site_id, readings) {
  * @param {'flare_data'|'accounting_log'} type
  * @param {Array} readings
  */
+/**
+ * Emit a site_data event to all web clients subscribed to the tenant.
+ * Sends a focused subset of accounting log fields representing current site status.
+ */
+function broadcastSiteData(tenant_id, site_id, readings) {
+    const webNs = getWebNamespace();
+    if (!webNs || readings.length === 0) return;
+
+    const latest = readings[readings.length - 1];
+    webNs.to(`tenant:${tenant_id}`).emit('site_data', {
+        site_id,
+        tenant_id,
+        timestamp:      latest.timestamp,
+        flr_flow:       latest.flr_flow,
+        ch4:            latest.ch4,
+        inlet_pressure: latest.inlet_pressure,
+        o2:             latest.o2,
+        flr_sdv:        latest.flr_sdv
+    });
+}
+
 function broadcastLatestReading(tenant_id, site_id, type, readings) {
     const webNs = getWebNamespace();
     if (!webNs || readings.length === 0) return;
@@ -226,6 +247,7 @@ const fileHandler = {
                         if (count > 0) {
                             console.log(`Stored ${count} new accounting record(s) from ${filename} for ${tenant_id}-${site_id}`);
                             broadcastLatestReading(tenant_id, site_id, 'accounting_log', readings);
+                            broadcastSiteData(tenant_id, site_id, readings);
                         }
                     })
                     .catch(err => console.error(`Failed to store accounting records from ${filename}:`, err));
