@@ -5,7 +5,7 @@ const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require(
 const { updateSiteName, getConnectionUptime } = require('../controllers/site.controller');
 const { getTenantById } = require('../controllers/tenant.controller');
 const { getSiteFiles, downloadFile } = require('../controllers/file.controller');
-const { getSiteReadings, getSiteAccountingData } = require('../controllers/readings.controller');
+const { getSiteReadings, getSiteAccountingData, getLatestSiteData } = require('../controllers/readings.controller');
 const {
     getUserNotifications,
     getSiteNotifications,
@@ -112,6 +112,9 @@ router.route('/notifications/:id/read').patch(markNotificationRead);
 
 // GET /readings/:tenant_id/:site_id?start=2026-03-01&end=2026-03-07
 router.route('/readings/:tenant_id/:site_id').get(getSiteReadings);
+
+// GET /accounting/:tenant_id/latest  — most recent entry per site for the tenant
+router.route('/accounting/:tenant_id/latest').get(getLatestSiteData);
 
 // GET /accounting/:tenant_id/:site_id?start=2026-03-01&end=2026-03-07
 router.route('/accounting/:tenant_id/:site_id').get(getSiteAccountingData);
