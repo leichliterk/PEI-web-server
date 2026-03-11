@@ -7,46 +7,72 @@ const Tenant = require('../../models/tenant.model');
 const { getWebNamespace } = require('../namespaceRegistry');
 
 /**
+ * Decode a UTF-16 LE buffer (Windows default for tab-separated exports) to a string.
+ * Strips the BOM if present.
+ */
+function decodeUtf16le(buffer) {
+    let text = buffer.toString('utf16le');
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    return text;
+}
+
+/**
+ * Sanitize a PLC tag name into a valid lowercase field name.
+ * e.g. "GHS_1.TE_301.VLU.SCL" → "ghs_1_te_301_vlu_scl"
+ */
+function sanitizeColumnName(name) {
+    return name.toLowerCase()
+        .replace(/[.\s]+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/, '');
+}
+
+/**
  * Parse a LineTrendGraph file buffer into an array of reading objects.
- * Format: space-separated; time (HH:MM:SS) and date (MM-DD-YYYY) are two separate tokens.
- * Example row: 00:04:23 03-02-2026 368.96 1549.11 ...
+ * Files are UTF-16 LE, tab-separated. The header row defines the column names,
+ * which vary per site (site-specific PLC tag names). All numeric columns are stored
+ * using sanitized versions of their header names.
  */
 function parseFlareData(buffer) {
-    const lines = buffer.toString('utf8').split(/\r?\n/).filter(l => l.trim());
+    const lines = decodeUtf16le(buffer).split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) return [];
+
+    // Parse header: col 0 is "Date", remaining are measurement tag names
+    const headers = lines[0].split('\t').map(h => sanitizeColumnName(h.trim()));
 
     const readings = [];
     for (const line of lines.slice(1)) {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length < 9) continue;
+        const cols = line.split('\t');
+        if (cols.length < 2) continue;
 
-        const [time, date, flr_flow, flr_temp_50x, flr_temp_502, inlet_pressure, o2, ch4, flr_sdv] = parts;
+        const dateParts = cols[0].trim().split(/\s+/);
+        if (dateParts.length < 2) continue;
+
+        const [time, date] = dateParts;
         const [month, day, year] = date.split('-');
         const timestamp = new Date(`${year}-${month}-${day}T${time}Z`);
         if (isNaN(timestamp.getTime())) continue;
 
-        readings.push({
-            timestamp,
-            date_key:       `${year}-${month}-${day}`,
-            flr_flow:       parseFloat(flr_flow),
-            flr_temp_50x:   parseFloat(flr_temp_50x),
-            flr_temp_502:   parseFloat(flr_temp_502),
-            inlet_pressure: parseFloat(inlet_pressure),
-            o2:             parseFloat(o2),
-            ch4:            parseFloat(ch4),
-            flr_sdv:        parseFloat(flr_sdv)
-        });
+        const reading = { timestamp, date_key: `${year}-${month}-${day}` };
+
+        for (let i = 1; i < headers.length && i < cols.length; i++) {
+            const val = parseFloat(cols[i]);
+            if (!isNaN(val)) reading[headers[i]] = val;
+        }
+
+        readings.push(reading);
     }
     return readings;
 }
 
 /**
  * Parse an AccountingLog file buffer into an array of reading objects.
- * Format: tab-separated; the Date column contains "HH:MM:SS MM-DD-YYYY" as a single field.
- * Example row: 00:04:23 03-07-2026\t372.94\t1549.35\t...
+ * Files are UTF-16 LE, tab-separated. Columns are fixed:
+ *   Date, FLR_FLOW, FLR_TEMP_50X, FLR_TEMP_502, INLET_PRESSURE, O2, CH4, FLR_SDV
  */
 function parseAccountingLog(buffer) {
-    const lines = buffer.toString('utf8').split(/\r?\n/).filter(l => l.trim());
+    const lines = decodeUtf16le(buffer).split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) return [];
 
     const readings = [];
@@ -173,7 +199,7 @@ const fileHandler = {
                 { upsert: true, new: true }
             );
 
-            console.log(`File received from ${tenant_id}-${site_id}: ${filename} (${fileBuffer.length} bytes), category=${siteFile.category}`);
+            console.log(`File received from ${tenant_id}-${site_id}: ${filename} (${fileBuffer.length} bytes)`);
 
             // Refresh last_seen in MongoDB so HTTP consumers don't see a stale value
             // (file uploads are the only activity signal after connect, now that heartbeats are gone)
@@ -185,22 +211,24 @@ const fileHandler = {
             // Parse and store time-series readings (fire-and-forget)
             if (siteFile.category === 'flare_data') {
                 const readings = parseFlareData(fileBuffer);
-                console.log(`[readings] parseFlareData: ${readings.length} row(s) parsed from ${filename}`);
                 storeReadings(SiteReading, tenant_id, site_id, readings)
                     .then(count => {
-                        console.log(`[readings] storeReadings: ${count} new row(s) inserted (${readings.length - count} duplicate(s)) for ${filename}`);
-                        if (count > 0) broadcastLatestReading(tenant_id, site_id, 'flare_data', readings);
+                        if (count > 0) {
+                            console.log(`Stored ${count} new reading(s) from ${filename} for ${tenant_id}-${site_id}`);
+                            broadcastLatestReading(tenant_id, site_id, 'flare_data', readings);
+                        }
                     })
-                    .catch(err => console.error(`[readings] Failed to store readings from ${filename}:`, err));
+                    .catch(err => console.error(`Failed to store readings from ${filename}:`, err));
             } else if (siteFile.category === 'accounting_log') {
                 const readings = parseAccountingLog(fileBuffer);
-                console.log(`[readings] parseAccountingLog: ${readings.length} row(s) parsed from ${filename}`);
                 storeReadings(SiteAccounting, tenant_id, site_id, readings)
                     .then(count => {
-                        console.log(`[readings] storeReadings: ${count} new row(s) inserted (${readings.length - count} duplicate(s)) for ${filename}`);
-                        if (count > 0) broadcastLatestReading(tenant_id, site_id, 'accounting_log', readings);
+                        if (count > 0) {
+                            console.log(`Stored ${count} new accounting record(s) from ${filename} for ${tenant_id}-${site_id}`);
+                            broadcastLatestReading(tenant_id, site_id, 'accounting_log', readings);
+                        }
                     })
-                    .catch(err => console.error(`[readings] Failed to store accounting records from ${filename}:`, err));
+                    .catch(err => console.error(`Failed to store accounting records from ${filename}:`, err));
             }
 
             socket.emit('ftp:file_ack', { success: true, filename, file_id: siteFile._id });
