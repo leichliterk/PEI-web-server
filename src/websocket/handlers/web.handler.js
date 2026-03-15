@@ -112,7 +112,7 @@ const webHandler = {
                     auth0_id: socket.auth0_id,  // ensure the notification belongs to this user
                     read_at: null
                 },
-                { read_at: new Date() }
+                { read_at: new Date(), expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }
             );
 
             if (!result) {
@@ -120,6 +120,7 @@ const webHandler = {
             }
         } catch (error) {
             console.error('Failed to mark notification as read:', error);
+            socket.emit('error', { message: 'Failed to mark notification as read' });
         }
     },
 

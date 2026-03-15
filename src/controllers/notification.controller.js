@@ -52,9 +52,10 @@ const getSiteNotifications = asyncHandler(async (req, res) => {
 const markNotificationRead = asyncHandler(async (req, res) => {
     const { id } = req.params;
 
+    const now = new Date();
     const notification = await Notification.findByIdAndUpdate(
         id,
-        { read_at: new Date() },
+        { read_at: now, expires_at: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) },
         { new: true }
     );
 
@@ -72,9 +73,10 @@ const markNotificationRead = asyncHandler(async (req, res) => {
 const markAllUserNotificationsRead = asyncHandler(async (req, res) => {
     const { auth0_id } = req.params;
 
+    const now = new Date();
     const result = await Notification.updateMany(
         { recipient_type: 'user', auth0_id, read_at: null },
-        { read_at: new Date() }
+        { read_at: now, expires_at: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) }
     );
 
     return res.status(200).json({ message: 'All notifications marked as read', count: result.modifiedCount });
@@ -87,6 +89,7 @@ const markAllUserNotificationsRead = asyncHandler(async (req, res) => {
 const markAllSiteNotificationsRead = asyncHandler(async (req, res) => {
     const { tenant_id, site_id } = req.params;
 
+    const now = new Date();
     const result = await Notification.updateMany(
         {
             recipient_type: 'site',
@@ -94,10 +97,26 @@ const markAllSiteNotificationsRead = asyncHandler(async (req, res) => {
             site_id: parseInt(site_id),
             read_at: null
         },
-        { read_at: new Date() }
+        { read_at: now, expires_at: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) }
     );
 
     return res.status(200).json({ message: 'All notifications marked as read', count: result.modifiedCount });
+});
+
+/**
+ * DELETE /api/data/notifications/:id
+ * Delete a single notification by ID.
+ */
+const deleteNotification = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const notification = await Notification.findByIdAndDelete(id);
+
+    if (!notification) {
+        return res.status(404).json({ message: 'Notification not found' });
+    }
+
+    return res.status(200).json({ message: 'Notification deleted' });
 });
 
 module.exports = {
@@ -105,5 +124,6 @@ module.exports = {
     getSiteNotifications,
     markNotificationRead,
     markAllUserNotificationsRead,
-    markAllSiteNotificationsRead
+    markAllSiteNotificationsRead,
+    deleteNotification
 };
