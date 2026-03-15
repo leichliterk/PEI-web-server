@@ -11,7 +11,8 @@ const {
     getSiteNotifications,
     markNotificationRead,
     markAllUserNotificationsRead,
-    markAllSiteNotificationsRead
+    markAllSiteNotificationsRead,
+    deleteNotification
 } = require('../controllers/notification.controller');
 
 const router = express.Router();
@@ -99,8 +100,11 @@ router.route('/notifications/site/:tenant_id/:site_id').get(getSiteNotifications
 // Mark all notifications for a site as read
 router.route('/notifications/site/:tenant_id/:site_id/read-all').post(markAllSiteNotificationsRead);
 
-// Mark a single notification as read (must come before /:id catch-all if added later)
+// Mark a single notification as read
 router.route('/notifications/:id/read').patch(markNotificationRead);
+
+// Delete a single notification
+router.route('/notifications/:id').delete(deleteNotification);
 
 
 
