@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const path = require('path');
+const { DateTime } = require('luxon');
 const SiteFile = require('../../models/siteFile.model');
 const SiteReading = require('../../models/siteReading.model');
 const SiteAccounting = require('../../models/siteAccounting.model');
@@ -51,7 +52,7 @@ function parseFlareData(buffer) {
 
         const [time, date] = dateParts;
         const [month, day, year] = date.split('-');
-        const timestamp = new Date(`${year}-${month}-${day}T${time}Z`);
+        const timestamp = DateTime.fromISO(`${year}-${month}-${day}T${time}`, { zone: 'America/New_York' }).toJSDate();
         if (isNaN(timestamp.getTime())) continue;
 
         const reading = { timestamp, date_key: `${year}-${month}-${day}` };
@@ -85,7 +86,7 @@ function parseAccountingLog(buffer) {
 
         const [time, date] = dateParts;
         const [month, day, year] = date.split('-');
-        const timestamp = new Date(`${year}-${month}-${day}T${time}Z`);
+        const timestamp = DateTime.fromISO(`${year}-${month}-${day}T${time}`, { zone: 'America/New_York' }).toJSDate();
         if (isNaN(timestamp.getTime())) continue;
 
         readings.push({
