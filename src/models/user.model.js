@@ -1,26 +1,5 @@
 const mongoose = require('mongoose');
 
-const subscriptionSchema = new mongoose.Schema({
-    category: {
-        type: String,
-        required: true
-    },
-    start_date: {
-        type: Date,
-        default: Date.now,
-        required: true
-    },
-    end_date: {
-        type: Date,
-        default: () => Date.now() + (1000 * 60 * 60 * 24 * 365),
-        required: true
-    },
-    comment: {
-        type: String,
-        required: false
-    }
-}, {timestamps: true} );
-
 const userSchema = new mongoose.Schema({
     fname: {
         type: String,
@@ -34,7 +13,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    phone: {
+    auth0_id: {
+        type: String,
+        required: true
+    },
+    role: {
         type: String,
         required: false
     },
@@ -46,12 +29,24 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: false
     },
-    myReports: [],
-    subscription: [ subscriptionSchema ],
+    company: {
+        type: String,
+        required: false
+    },
     comment: {
         type: String,
         required: false
     },
+
+    // Tenant and site access
+    tenant_id: {
+        type: Number,
+        default: null
+    },
+    site_ids: {
+        type: [Number],
+        default: []    // empty = access to all sites in the tenant
+    }
 }, { timestamps: true } );
 
 userSchema.set('timestamps', true);
