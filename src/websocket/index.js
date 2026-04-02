@@ -5,6 +5,7 @@ const authMiddleware = require('./middleware/auth.middleware');
 const connectionHandler = require('./handlers/connection.handler');
 const webHandler = require('./handlers/web.handler');
 const fileHandler = require('./handlers/file.handler');
+const otaHandler = require('./handlers/ota.handler');
 const namespaceRegistry = require('./namespaceRegistry');
 
 /**
@@ -44,8 +45,10 @@ function initializeWebSocket(httpServer) {
     desktopNamespace.on('connection', (socket) => {
         connectionHandler.onConnect(socket, desktopNamespace);
 
-        socket.on('ftp:file', (data) => fileHandler.onFileUpload(socket, data));
-        socket.on('disconnect', (reason) => connectionHandler.onDisconnect(socket, reason));
+        socket.on('ftp:file',      (data) => fileHandler.onFileUpload(socket, data));
+        socket.on('ota:response',  (data) => otaHandler.onOtaResponse(socket, data));
+        socket.on('ota:installed', (data) => otaHandler.onOtaInstalled(socket, data));
+        socket.on('disconnect',    (reason) => connectionHandler.onDisconnect(socket, reason));
     });
 
     // Namespace for web clients

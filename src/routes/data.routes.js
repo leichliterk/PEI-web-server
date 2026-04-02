@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 
 const { about } = require('../controllers/utility.controller');
 const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require('../controllers/user.controller');
@@ -14,8 +15,26 @@ const {
     markAllSiteNotificationsRead,
     deleteNotification
 } = require('../controllers/notification.controller');
+const {
+    uploadRelease,
+    listReleases,
+    downloadRelease,
+    getReleaseResponses
+} = require('../controllers/ota.controller');
 
 const router = express.Router();
+
+// Multer instance for OTA .exe uploads — memory storage, 500 MB limit, .exe only
+const otaUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 500 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (!file.originalname.toLowerCase().endsWith('.exe')) {
+            return cb(new Error('Only .exe files are accepted'));
+        }
+        cb(null, true);
+    }
+});
 
 
 
@@ -132,5 +151,25 @@ router.route('/accounting/:tenant_id/:site_id').get(getSiteAccountingData);
  ****************************************/
 
 router.route('/tenant/getTenantById/:tenant_id').get(getTenantById);
+
+
+
+/****************************************
+ *
+ *   OTA update routes
+ *
+ ****************************************/
+
+// Admin: upload a new .exe release and notify all sites in the tenant
+router.route('/ota/upload').post(otaUpload.single('exe'), uploadRelease);
+
+// Admin: list all releases for a tenant (with per-site response summary)
+router.route('/ota/releases/:tenant_id').get(listReleases);
+
+// Admin: per-site response details for a specific release
+router.route('/ota/responses/:release_id').get(getReleaseResponses);
+
+// Desktop: download the .exe  (requires Authorization: Bearer <download_token>)
+router.route('/ota/download/:release_id').get(downloadRelease);
 
 module.exports = router;
