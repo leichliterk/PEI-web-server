@@ -19,7 +19,8 @@ const {
     uploadRelease,
     listReleases,
     downloadRelease,
-    getReleaseResponses
+    getReleaseResponses,
+    patchRelease
 } = require('../controllers/ota.controller');
 
 const router = express.Router();
@@ -168,6 +169,9 @@ router.route('/ota/releases/:tenant_id').get(listReleases);
 
 // Admin: per-site response details for a specific release
 router.route('/ota/responses/:release_id').get(getReleaseResponses);
+
+// Admin: manually archive a release
+router.route('/ota/releases/:id').patch(patchRelease);
 
 // Desktop: download the .exe  (requires Authorization: Bearer <download_token>)
 router.route('/ota/download/:release_id').get(downloadRelease);

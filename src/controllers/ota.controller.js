@@ -217,6 +217,31 @@ const otaController = {
             .lean();
 
         res.json(responses);
+    },
+
+    /**
+     * PATCH /api/data/ota/releases/:id
+     * Manually archive a release. Only 'archived' is accepted — status is not freely settable.
+     * Body: { status: 'archived' }
+     */
+    async patchRelease(req, res) {
+        const { status } = req.body;
+
+        if (status !== 'archived') {
+            return res.status(400).json({ error: "Only status 'archived' may be set manually" });
+        }
+
+        const release = await OtaRelease.findByIdAndUpdate(
+            req.params.id,
+            { status: 'archived' },
+            { new: true }
+        ).select('-gridfs_file_id').lean();
+
+        if (!release) {
+            return res.status(404).json({ error: 'Release not found' });
+        }
+
+        res.json(release);
     }
 };
 
