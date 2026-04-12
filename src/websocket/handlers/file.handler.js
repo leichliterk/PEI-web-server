@@ -43,6 +43,7 @@ function parseFlareData(buffer) {
     const headers = lines[0].split('\t').map(h => sanitizeColumnName(h.trim()));
 
     const readings = [];
+    const seenTimestamps = new Set();
     for (const line of lines.slice(1)) {
         const cols = line.split('\t');
         if (cols.length < 2) continue;
@@ -52,8 +53,15 @@ function parseFlareData(buffer) {
 
         const [time, date] = dateParts;
         const [month, day, year] = date.split('-');
-        const timestamp = DateTime.fromISO(`${year}-${month}-${day}T${time}`, { zone: 'America/New_York' }).toJSDate();
-        if (isNaN(timestamp.getTime())) continue;
+        const dt = DateTime.fromISO(`${year}-${month}-${day}T${time}`, { zone: 'America/New_York' });
+        if (!dt.isValid) continue;
+
+        // Skip DST spring-forward gap times (see parseAccountingLog for explanation)
+        if (dt.toFormat('HH') !== time.slice(0, 2)) continue;
+
+        const timestamp = dt.toJSDate();
+        if (seenTimestamps.has(timestamp.getTime())) continue;
+        seenTimestamps.add(timestamp.getTime());
 
         const reading = { timestamp, date_key: `${year}-${month}-${day}` };
 
@@ -77,6 +85,7 @@ function parseAccountingLog(buffer) {
     if (lines.length < 2) return [];
 
     const readings = [];
+    const seenTimestamps = new Set();
     for (const line of lines.slice(1)) {
         const cols = line.split('\t');
         if (cols.length < 8) continue;
@@ -86,8 +95,19 @@ function parseAccountingLog(buffer) {
 
         const [time, date] = dateParts;
         const [month, day, year] = date.split('-');
-        const timestamp = DateTime.fromISO(`${year}-${month}-${day}T${time}`, { zone: 'America/New_York' }).toJSDate();
-        if (isNaN(timestamp.getTime())) continue;
+        const dt = DateTime.fromISO(`${year}-${month}-${day}T${time}`, { zone: 'America/New_York' });
+        if (!dt.isValid) continue;
+
+        // Skip times that fall in a DST spring-forward gap. Luxon advances gap
+        // times to the next valid hour, which produces the same UTC timestamp as
+        // the real post-DST row — causing duplicate inserts with different values.
+        if (dt.toFormat('HH') !== time.slice(0, 2)) continue;
+
+        const timestamp = dt.toJSDate();
+
+        // Deduplicate within this file in case the source contains repeat rows
+        if (seenTimestamps.has(timestamp.getTime())) continue;
+        seenTimestamps.add(timestamp.getTime());
 
         readings.push({
             timestamp,
