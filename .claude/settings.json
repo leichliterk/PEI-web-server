@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__coordinator__task_list",
+      "mcp__coordinator__task_get",
+      "mcp__coordinator__task_update",
+      "mcp__coordinator__event_publish"
+    ]
+  }
+}
