@@ -23,6 +23,7 @@ const {
     patchRelease
 } = require('../controllers/ota.controller');
 const { getDailyDestructionCredits } = require('../controllers/reports.controller');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -163,13 +164,16 @@ router.route('/tenant/getTenantById/:tenant_id').get(getTenantById);
  ****************************************/
 
 // Admin: upload a new .exe release and notify all sites in the tenant
-router.route('/ota/upload').post(otaUpload.single('exe'), uploadRelease);
+router.route('/ota/upload').post(requireAuth, requireAdmin, otaUpload.single('exe'), uploadRelease);
 
 // Admin: list all releases for a tenant (with per-site response summary)
 router.route('/ota/releases/:tenant_id').get(listReleases);
 
 // Admin: per-site response details for a specific release
-router.route('/ota/responses/:release_id').get(getReleaseResponses);
+router.route('/ota/responses/:release_id').get(requireAuth, requireAdmin, getReleaseResponses);
+
+// Admin: manually archive a release
+router.route('/ota/releases/:id').patch(requireAuth, requireAdmin, patchRelease);
 
 // Admin: manually archive a release
 router.route('/ota/releases/:id').patch(patchRelease);
