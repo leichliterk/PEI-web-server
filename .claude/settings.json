@@ -4,7 +4,9 @@
       "mcp__coordinator__task_list",
       "mcp__coordinator__task_get",
       "mcp__coordinator__task_update",
-      "mcp__coordinator__event_publish"
+      "mcp__coordinator__event_publish",
+      "mcp__coordinator__blackboard_snapshot",
+      "mcp__coordinator__contract_get"
     ]
   }
 }
