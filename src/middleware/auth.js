@@ -7,7 +7,7 @@ const User = require('../models/user.model');
  */
 const requireAuth = auth({
     issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
-    audience:      process.env.AUTH0_API_AUDIENCE,
+    audience:      process.env.AUTH0_AUDIENCE,
 });
 
 /**
