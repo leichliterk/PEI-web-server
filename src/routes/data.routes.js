@@ -21,6 +21,7 @@ const {
     downloadRelease,
     getReleaseResponses
 } = require('../controllers/ota.controller');
+const { getDailyDestructionCredits } = require('../controllers/reports.controller');
 
 const router = express.Router();
 
@@ -171,5 +172,16 @@ router.route('/ota/responses/:release_id').get(getReleaseResponses);
 
 // Desktop: download the .exe  (requires Authorization: Bearer <download_token>)
 router.route('/ota/download/:release_id').get(downloadRelease);
+
+
+
+/****************************************
+ *
+ *   Report routes
+ *
+ ****************************************/
+
+// Daily destruction credits matrix for a tenant
+router.get('/reports/daily-destruction/:tenant_id', getDailyDestructionCredits);
 
 module.exports = router;
