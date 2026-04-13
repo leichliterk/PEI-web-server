@@ -20,6 +20,9 @@ app.get("/", (req, res) => {
 const dataRouter = require('./src/routes/data.routes');
 app.use('/api/data', dataRouter);
 
+const siteManagementRouter = require('./src/routes/siteManagement.routes');
+app.use('/api/data/site-management', siteManagementRouter);
+
 // Initialize WebSocket server
 const io = initializeWebSocket(server);
 app.set('io', io);

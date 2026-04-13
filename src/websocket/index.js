@@ -6,6 +6,7 @@ const connectionHandler = require('./handlers/connection.handler');
 const webHandler = require('./handlers/web.handler');
 const fileHandler = require('./handlers/file.handler');
 const otaHandler = require('./handlers/ota.handler');
+const siteManagementHandler = require('./handlers/siteManagement.handler');
 const namespaceRegistry = require('./namespaceRegistry');
 
 /**
@@ -45,10 +46,12 @@ function initializeWebSocket(httpServer) {
     desktopNamespace.on('connection', (socket) => {
         connectionHandler.onConnect(socket, desktopNamespace);
 
-        socket.on('ftp:file',      (data) => fileHandler.onFileUpload(socket, data));
-        socket.on('ota:response',  (data) => otaHandler.onOtaResponse(socket, data));
-        socket.on('ota:installed', (data) => otaHandler.onOtaInstalled(socket, data));
-        socket.on('disconnect',    (reason) => connectionHandler.onDisconnect(socket, reason));
+        socket.on('ftp:file',       (data) => fileHandler.onFileUpload(socket, data));
+        socket.on('ota:response',   (data) => otaHandler.onOtaResponse(socket, data));
+        socket.on('ota:installed',  (data) => otaHandler.onOtaInstalled(socket, data));
+        socket.on('service:status', (data) => siteManagementHandler.onServiceStatus(socket, data));
+        socket.on('ftp:status',     (data) => siteManagementHandler.onFtpStatus(socket, data));
+        socket.on('disconnect',     (reason) => connectionHandler.onDisconnect(socket, reason));
     });
 
     // Namespace for web clients
@@ -59,11 +62,21 @@ function initializeWebSocket(httpServer) {
     webNamespace.on('connection', (socket) => {
         webHandler.onConnect(socket);
 
-        socket.on('subscribe_tenant', (data) => webHandler.onSubscribeTenant(socket, data));
+        socket.on('subscribe_tenant',   (data) => webHandler.onSubscribeTenant(socket, data));
         socket.on('unsubscribe_tenant', (data) => webHandler.onUnsubscribeTenant(socket, data));
-        socket.on('user:identify', (data) => webHandler.onUserIdentify(socket, data));
-        socket.on('notification:read', (data) => webHandler.onNotificationRead(socket, data));
-        socket.on('disconnect', (reason) => webHandler.onDisconnect(socket, reason));
+        socket.on('subscribe_site',     (data) => {
+            const siteId   = parseInt(data?.site_id);
+            const tenantId = parseInt(data?.tenant_id);
+            if (siteId && tenantId) socket.join(`site:${tenantId}:${siteId}`);
+        });
+        socket.on('unsubscribe_site',   (data) => {
+            const siteId   = parseInt(data?.site_id);
+            const tenantId = parseInt(data?.tenant_id);
+            if (siteId && tenantId) socket.leave(`site:${tenantId}:${siteId}`);
+        });
+        socket.on('user:identify',      (data) => webHandler.onUserIdentify(socket, data));
+        socket.on('notification:read',  (data) => webHandler.onNotificationRead(socket, data));
+        socket.on('disconnect',         (reason) => webHandler.onDisconnect(socket, reason));
     });
 
     console.log('WebSocket server initialized on /api/data/desktop and /api/data/web namespaces');
