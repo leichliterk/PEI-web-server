@@ -7,6 +7,7 @@ const webHandler = require('./handlers/web.handler');
 const fileHandler = require('./handlers/file.handler');
 const otaHandler = require('./handlers/ota.handler');
 const siteManagementHandler = require('./handlers/siteManagement.handler');
+const plcHandler = require('./handlers/plc.handler');
 const namespaceRegistry = require('./namespaceRegistry');
 
 /**
@@ -51,6 +52,8 @@ function initializeWebSocket(httpServer) {
         socket.on('ota:installed',  (data) => otaHandler.onOtaInstalled(socket, data));
         socket.on('service:status', (data) => siteManagementHandler.onServiceStatus(socket, data));
         socket.on('ftp:status',     (data) => siteManagementHandler.onFtpStatus(socket, data));
+        socket.on('plc:snapshot',   (data) => plcHandler.onSnapshot(socket, data));
+        socket.on('plc:tags',       (data) => plcHandler.onTags(socket, data));
         socket.on('disconnect',     (reason) => connectionHandler.onDisconnect(socket, reason));
     });
 

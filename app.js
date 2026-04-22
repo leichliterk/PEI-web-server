@@ -23,6 +23,9 @@ app.use('/api/data', dataRouter);
 const siteManagementRouter = require('./src/routes/siteManagement.routes');
 app.use('/api/data/site-management', siteManagementRouter);
 
+const plcRouter = require('./src/routes/plc.routes');
+app.use('/api/data/plc', plcRouter);
+
 // Initialize WebSocket server
 const io = initializeWebSocket(server);
 app.set('io', io);
