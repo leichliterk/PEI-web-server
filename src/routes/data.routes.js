@@ -175,9 +175,6 @@ router.route('/ota/responses/:release_id').get(requireAuth, requireAdmin, getRel
 // Admin: manually archive a release
 router.route('/ota/releases/:id').patch(requireAuth, requireAdmin, patchRelease);
 
-// Admin: manually archive a release
-router.route('/ota/releases/:id').patch(patchRelease);
-
 // Desktop: download the .exe  (requires Authorization: Bearer <download_token>)
 router.route('/ota/download/:release_id').get(downloadRelease);
 
