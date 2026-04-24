@@ -11,15 +11,23 @@ const plcHandler = {
         const timestamp = data?.timestamp ? new Date(data.timestamp) : new Date();
         const tags      = data?.tags ?? [];
 
+        console.log(`[plc:snapshot] tenant=${tenant_id} site=${site_id} tags=${tags.length} ts=${timestamp.toISOString()}`);
+
         // Update in-memory cache
         plcCache.setSnapshot(tenant_id, site_id, { timestamp: timestamp.toISOString(), tags });
 
         // Forward to web clients watching this site
         const webNs = getWebNamespace();
         if (webNs) {
-            webNs.to(`site:${tenant_id}:${site_id}`).emit('plc:snapshot', {
+            const room   = `site:${tenant_id}:${site_id}`;
+            const sockets = webNs.adapter.rooms.get(room);
+            const count   = sockets ? sockets.size : 0;
+            console.log(`[plc:snapshot] → emitting to room "${room}" (${count} web client(s))`);
+            webNs.to(room).emit('plc:snapshot', {
                 tenant_id, site_id, timestamp: timestamp.toISOString(), tags
             });
+        } else {
+            console.warn('[plc:snapshot] web namespace not available');
         }
     },
 
