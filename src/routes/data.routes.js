@@ -20,7 +20,8 @@ const {
     listReleases,
     downloadRelease,
     getReleaseResponses,
-    patchRelease
+    patchRelease,
+    deleteRelease
 } = require('../controllers/ota.controller');
 const { getDailyDestructionCredits } = require('../controllers/reports.controller');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
@@ -172,8 +173,10 @@ router.route('/ota/releases/:tenant_id').get(listReleases);
 // Admin: per-site response details for a specific release
 router.route('/ota/responses/:release_id').get(requireAuth, requireAdmin, getReleaseResponses);
 
-// Admin: manually archive a release
-router.route('/ota/releases/:id').patch(requireAuth, requireAdmin, patchRelease);
+// Admin: update a release (notes, status)
+router.route('/ota/releases/:id')
+    .patch(requireAuth, requireAdmin, patchRelease)
+    .delete(requireAuth, requireAdmin, deleteRelease);
 
 // Desktop: download the .exe  (requires Authorization: Bearer <download_token>)
 router.route('/ota/download/:release_id').get(downloadRelease);
