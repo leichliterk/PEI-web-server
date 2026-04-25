@@ -221,28 +221,71 @@ const otaController = {
 
     /**
      * PATCH /api/data/ota/releases/:id
-     * Manually archive a release. Only 'archived' is accepted — status is not freely settable.
-     * Body: { status: 'archived' }
+     * Update a release's notes or status (e.g. manually archive).
+     * Body: { notes?, status? }
      */
     async patchRelease(req, res) {
-        const { status } = req.body;
+        const { notes, status } = req.body;
+        const allowed = ['active', 'superseded', 'archived'];
 
-        if (status !== 'archived') {
-            return res.status(400).json({ error: "Only status 'archived' may be set manually" });
+        if (status && !allowed.includes(status)) {
+            return res.status(400).json({ error: `status must be one of: ${allowed.join(', ')}` });
+        }
+
+        const update = {};
+        if (notes  !== undefined) update.notes  = notes;
+        if (status !== undefined) update.status = status;
+
+        if (Object.keys(update).length === 0) {
+            return res.status(400).json({ error: 'Nothing to update — provide notes or status' });
         }
 
         const release = await OtaRelease.findByIdAndUpdate(
             req.params.id,
-            { status: 'archived' },
+            update,
             { new: true }
-        ).select('-gridfs_file_id').lean();
+        ).select('-gridfs_file_id');
 
         if (!release) {
             return res.status(404).json({ error: 'Release not found' });
         }
 
         res.json(release);
+    },
+
+    /**
+     * DELETE /api/data/ota/releases/:id
+     * Delete a release and its GridFS binary. Also removes all response records.
+     */
+    async deleteRelease(req, res) {
+        const release = await OtaRelease.findById(req.params.id);
+        if (!release) {
+            return res.status(404).json({ error: 'Release not found' });
+        }
+
+        // Delete the GridFS file
+        try {
+            const bucket = getBucket();
+            await bucket.delete(release.gridfs_file_id);
+        } catch (err) {
+            // File may already be missing — log but continue
+            console.warn(`GridFS delete warning for release ${release._id}:`, err.message);
+        }
+
+        await OtaReleaseResponse.deleteMany({ release_id: release._id });
+        await release.deleteOne();
+
+        console.log(`OTA release ${release.version} (${release._id}) deleted`);
+
+        res.json({ deleted: true, release_id: release._id, version: release.version });
     }
 };
 
-module.exports = otaController;
+module.exports = {
+    uploadRelease:      otaController.uploadRelease,
+    listReleases:       otaController.listReleases,
+    downloadRelease:    otaController.downloadRelease,
+    getReleaseResponses:otaController.getReleaseResponses,
+    patchRelease:       otaController.patchRelease,
+    deleteRelease:      otaController.deleteRelease
+};
