@@ -1,5 +1,6 @@
 const OtaRelease = require('../../models/otaRelease.model');
 const OtaReleaseResponse = require('../../models/otaReleaseResponse.model');
+const { getWebNamespace } = require('../namespaceRegistry');
 
 const otaHandler = {
 
@@ -33,6 +34,42 @@ const otaHandler = {
         } catch (err) {
             console.error('Error recording OTA response:', err);
             socket.emit('ota:response_ack', { success: false, error: 'Server error' });
+        }
+    },
+
+    /**
+     * Desktop emits: ota:install_status { release_id, phase, message }
+     * Phases: downloading | verifying | launching | installing | restarting | failed
+     * Forwarded live to web clients watching this site.
+     */
+    onInstallStatus(socket, data) {
+        const { tenant_id, site_id } = socket.siteData;
+        const { release_id, phase, message } = data || {};
+
+        console.log(`[ota:install_status] ${tenant_id}-${site_id} release=${release_id} phase=${phase}`);
+
+        const webNs = getWebNamespace();
+        if (webNs) {
+            webNs.to(`site:${tenant_id}:${site_id}`).emit('ota:install_status', {
+                tenant_id, site_id, release_id, phase, message: message ?? null
+            });
+        }
+    },
+
+    /**
+     * Desktop emits: ota:install_progress { release_id, line }
+     * One line from the WiX installer log. High volume during 'installing' phase.
+     * Forwarded as-is to web clients watching this site.
+     */
+    onInstallProgress(socket, data) {
+        const { tenant_id, site_id } = socket.siteData;
+        const { release_id, line } = data || {};
+
+        const webNs = getWebNamespace();
+        if (webNs) {
+            webNs.to(`site:${tenant_id}:${site_id}`).emit('ota:install_progress', {
+                tenant_id, site_id, release_id, line: line ?? ''
+            });
         }
     },
 
