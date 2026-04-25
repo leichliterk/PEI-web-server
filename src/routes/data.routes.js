@@ -21,7 +21,8 @@ const {
     downloadRelease,
     getReleaseResponses,
     patchRelease,
-    deleteRelease
+    deleteRelease,
+    sendInstallCommand
 } = require('../controllers/ota.controller');
 const { getDailyDestructionCredits } = require('../controllers/reports.controller');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
@@ -177,6 +178,9 @@ router.route('/ota/responses/:release_id').get(requireAuth, requireAdmin, getRel
 router.route('/ota/releases/:id')
     .patch(requireAuth, requireAdmin, patchRelease)
     .delete(requireAuth, requireAdmin, deleteRelease);
+
+// Admin: dispatch unattended install to a specific site
+router.route('/ota/releases/:id/install').post(requireAuth, requireAdmin, sendInstallCommand);
 
 // Desktop: download the .exe  (requires Authorization: Bearer <download_token>)
 router.route('/ota/download/:release_id').get(downloadRelease);

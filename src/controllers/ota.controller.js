@@ -6,6 +6,8 @@ const OtaRelease = require('../models/otaRelease.model');
 const OtaReleaseResponse = require('../models/otaReleaseResponse.model');
 const Tenant = require('../models/tenant.model');
 const notificationService = require('../websocket/services/notificationService');
+const connectionManager = require('../websocket/services/connectionManager');
+const { getDesktopNamespace } = require('../websocket/namespaceRegistry');
 
 // Requires OTA_JWT_SECRET in environment variables
 const OTA_JWT_SECRET = process.env.OTA_JWT_SECRET;
@@ -167,14 +169,19 @@ const otaController = {
             return res.status(500).json({ error: 'OTA_JWT_SECRET is not configured on the server' });
         }
 
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        // Accept token from Authorization header OR ?token= query param
+        const bearerToken = req.headers.authorization?.startsWith('Bearer ')
+            ? req.headers.authorization.slice(7)
+            : null;
+        const rawToken = bearerToken || req.query.token || null;
+
+        if (!rawToken) {
             return res.status(401).json({ error: 'Missing download token' });
         }
 
         let payload;
         try {
-            payload = jwt.verify(authHeader.slice(7), OTA_JWT_SECRET);
+            payload = jwt.verify(rawToken, OTA_JWT_SECRET);
         } catch {
             return res.status(401).json({ error: 'Invalid or expired download token' });
         }
@@ -254,6 +261,61 @@ const otaController = {
     },
 
     /**
+     * POST /api/data/ota/releases/:id/install
+     * Dispatch an unattended install command to a specific site.
+     * Body: { tenant_id, site_id }
+     * The site must be currently connected.
+     */
+    async sendInstallCommand(req, res) {
+        if (!OTA_JWT_SECRET) {
+            return res.status(500).json({ error: 'OTA_JWT_SECRET is not configured on the server' });
+        }
+
+        const tenantId = parseInt(req.body.tenant_id);
+        const siteId   = parseInt(req.body.site_id);
+
+        if (isNaN(tenantId) || isNaN(siteId)) {
+            return res.status(400).json({ error: 'tenant_id and site_id are required integers' });
+        }
+
+        const release = await OtaRelease.findById(req.params.id);
+        if (!release) {
+            return res.status(404).json({ error: 'Release not found' });
+        }
+        if (release.tenant_id !== tenantId) {
+            return res.status(403).json({ error: 'Release does not belong to this tenant' });
+        }
+
+        const conn = connectionManager.getConnection(tenantId, siteId);
+        if (!conn) {
+            return res.status(409).json({ error: 'Site is not currently connected' });
+        }
+
+        const ns = getDesktopNamespace();
+        const socket = ns ? ns.sockets.get(conn.socketId) : null;
+        if (!socket) {
+            return res.status(409).json({ error: 'Site socket not found' });
+        }
+
+        // Build a self-contained download URL valid for 2 hours
+        const token = generateDownloadToken(release._id, tenantId, siteId);
+        const baseUrl = process.env.SERVER_BASE_URL ||
+            `${req.protocol}://${req.get('host')}`;
+        const download_url = `${baseUrl}/api/data/ota/download/${release._id}?token=${token}`;
+
+        socket.emit('ota:install_command', {
+            release_id:   release._id.toString(),
+            version:      release.version,
+            sha256:       release.sha256,
+            download_url
+        });
+
+        console.log(`OTA install command dispatched to ${tenantId}-${siteId}: v${release.version}`);
+
+        return res.json({ dispatched: true, release_id: release._id, version: release.version });
+    },
+
+    /**
      * DELETE /api/data/ota/releases/:id
      * Delete a release and its GridFS binary. Also removes all response records.
      */
@@ -282,10 +344,11 @@ const otaController = {
 };
 
 module.exports = {
-    uploadRelease:      otaController.uploadRelease,
-    listReleases:       otaController.listReleases,
-    downloadRelease:    otaController.downloadRelease,
-    getReleaseResponses:otaController.getReleaseResponses,
-    patchRelease:       otaController.patchRelease,
-    deleteRelease:      otaController.deleteRelease
+    uploadRelease:       otaController.uploadRelease,
+    listReleases:        otaController.listReleases,
+    downloadRelease:     otaController.downloadRelease,
+    getReleaseResponses: otaController.getReleaseResponses,
+    patchRelease:        otaController.patchRelease,
+    deleteRelease:       otaController.deleteRelease,
+    sendInstallCommand:  otaController.sendInstallCommand
 };
