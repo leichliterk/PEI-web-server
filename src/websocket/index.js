@@ -48,8 +48,10 @@ function initializeWebSocket(httpServer) {
         connectionHandler.onConnect(socket, desktopNamespace);
 
         socket.on('ftp:file',       (data) => fileHandler.onFileUpload(socket, data));
-        socket.on('ota:response',   (data) => otaHandler.onOtaResponse(socket, data));
-        socket.on('ota:installed',  (data) => otaHandler.onOtaInstalled(socket, data));
+        socket.on('ota:response',         (data) => otaHandler.onOtaResponse(socket, data));
+        socket.on('ota:installed',        (data) => otaHandler.onOtaInstalled(socket, data));
+        socket.on('ota:install_status',   (data) => otaHandler.onInstallStatus(socket, data));
+        socket.on('ota:install_progress', (data) => otaHandler.onInstallProgress(socket, data));
         socket.on('service:status', (data) => siteManagementHandler.onServiceStatus(socket, data));
         socket.on('ftp:status',     (data) => siteManagementHandler.onFtpStatus(socket, data));
         socket.on('plc:snapshot',   (data) => plcHandler.onSnapshot(socket, data));
