@@ -70,4 +70,4 @@ const getTags = asyncHandler(async (req, res) => {
     return res.json({ tenant_id: tenantId, site_id: siteId, ...cached });
 });
 
-module.exports = { getLatest, getTags };
+module.exports = { getLatest, getSnapshots, getTags };
