@@ -2,7 +2,6 @@ const crypto = require('crypto');
 const path = require('path');
 const { DateTime } = require('luxon');
 const SiteFile = require('../../models/siteFile.model');
-const SiteReading = require('../../models/siteReading.model');
 const SiteAccounting = require('../../models/siteAccounting.model');
 const Tenant = require('../../models/tenant.model');
 const { getWebNamespace } = require('../namespaceRegistry');
@@ -15,64 +14,6 @@ function decodeUtf16le(buffer) {
     let text = buffer.toString('utf16le');
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
     return text;
-}
-
-/**
- * Sanitize a PLC tag name into a valid lowercase field name.
- * e.g. "GHS_1.TE_301.VLU.SCL" → "ghs_1_te_301_vlu_scl"
- */
-function sanitizeColumnName(name) {
-    return name.toLowerCase()
-        .replace(/[.\s]+/g, '_')
-        .replace(/[^a-z0-9_]/g, '')
-        .replace(/_+/g, '_')
-        .replace(/^_|_$/, '');
-}
-
-/**
- * Parse a LineTrendGraph file buffer into an array of reading objects.
- * Files are UTF-16 LE, tab-separated. The header row defines the column names,
- * which vary per site (site-specific PLC tag names). All numeric columns are stored
- * using sanitized versions of their header names.
- */
-function parseFlareData(buffer) {
-    const lines = decodeUtf16le(buffer).split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) return [];
-
-    // Parse header: col 0 is "Date", remaining are measurement tag names
-    const headers = lines[0].split('\t').map(h => sanitizeColumnName(h.trim()));
-
-    const readings = [];
-    const seenTimestamps = new Set();
-    for (const line of lines.slice(1)) {
-        const cols = line.split('\t');
-        if (cols.length < 2) continue;
-
-        const dateParts = cols[0].trim().split(/\s+/);
-        if (dateParts.length < 2) continue;
-
-        const [time, date] = dateParts;
-        const [month, day, year] = date.split('-');
-        const dt = DateTime.fromISO(`${year}-${month}-${day}T${time}`, { zone: 'America/New_York' });
-        if (!dt.isValid) continue;
-
-        // Skip DST spring-forward gap times (see parseAccountingLog for explanation)
-        if (dt.toFormat('HH') !== time.slice(0, 2)) continue;
-
-        const timestamp = dt.toJSDate();
-        if (seenTimestamps.has(timestamp.getTime())) continue;
-        seenTimestamps.add(timestamp.getTime());
-
-        const reading = { timestamp, date_key: `${year}-${month}-${day}` };
-
-        for (let i = 1; i < headers.length && i < cols.length; i++) {
-            const val = parseFloat(cols[i]);
-            if (!isNaN(val)) reading[headers[i]] = val;
-        }
-
-        readings.push(reading);
-    }
-    return readings;
 }
 
 /**
@@ -128,7 +69,7 @@ function parseAccountingLog(buffer) {
  * Deduplicate against existing records in the time range, then bulk-insert new rows.
  * Returns the number of rows inserted.
  *
- * @param {mongoose.Model} Model - The target time-series model (SiteReading or SiteAccounting)
+ * @param {mongoose.Model} Model - The target time-series model
  */
 async function storeReadings(Model, tenant_id, site_id, readings) {
     if (readings.length === 0) return 0;
@@ -251,17 +192,7 @@ const fileHandler = {
             );
 
             // Parse and store time-series readings (fire-and-forget)
-            if (siteFile.category === 'flare_data') {
-                const readings = parseFlareData(fileBuffer);
-                storeReadings(SiteReading, tenant_id, site_id, readings)
-                    .then(count => {
-                        if (count > 0) {
-                            console.log(`Stored ${count} new reading(s) from ${filename} for ${tenant_id}-${site_id}`);
-                            broadcastLatestReading(tenant_id, site_id, 'flare_data', readings);
-                        }
-                    })
-                    .catch(err => console.error(`Failed to store readings from ${filename}:`, err));
-            } else if (siteFile.category === 'accounting_log') {
+            if (siteFile.category === 'accounting_log') {
                 const readings = parseAccountingLog(fileBuffer);
                 storeReadings(SiteAccounting, tenant_id, site_id, readings)
                     .then(count => {
