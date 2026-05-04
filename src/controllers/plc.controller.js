@@ -1,6 +1,6 @@
 const asyncHandler = require('express-async-handler');
-const PlcSnapshot = require('../models/plcSnapshot.model');
 const plcCache    = require('../websocket/services/plcCache');
+const SiteReading = require('../models/siteReading.model');
 
 /**
  * GET /api/data/plc/:tenant_id/:site_id/latest
@@ -18,7 +18,7 @@ const getLatest = asyncHandler(async (req, res) => {
     if (cached) return res.json({ tenant_id: tenantId, site_id: siteId, ...cached });
 
     // Cache miss — query DB
-    const snap = await PlcSnapshot.findOne({ tenant_id: tenantId, site_id: siteId })
+    const snap = await SiteReading.findOne({ tenant_id: tenantId, site_id: siteId })
         .sort({ timestamp: -1 })
         .lean();
 
@@ -28,32 +28,25 @@ const getLatest = asyncHandler(async (req, res) => {
 });
 
 /**
- * GET /api/data/plc/:tenant_id/:site_id/snapshots?start=ISO&end=ISO
- * Returns snapshots within a timestamp range, sorted ascending.
+ * GET /api/data/plc/:tenant_id/:site_id/snapshots?minutes=30
+ * Returns readings from the past N minutes, sorted ascending.
+ * Defaults to 60 minutes if not specified.
  */
 const getSnapshots = asyncHandler(async (req, res) => {
     const tenantId = parseInt(req.params.tenant_id);
     const siteId   = parseInt(req.params.site_id);
-    const { start, end } = req.query;
+    const minutes  = parseInt(req.query.minutes) || 60;
 
     if (isNaN(tenantId) || isNaN(siteId)) {
         return res.status(400).json({ error: 'tenant_id and site_id must be integers.' });
     }
-    if (!start || !end) {
-        return res.status(400).json({ error: 'start and end query parameters are required (ISO 8601).' });
-    }
 
-    const startDate = new Date(start);
-    const endDate   = new Date(end);
+    const since = new Date(Date.now() - minutes * 60 * 1000);
 
-    if (isNaN(startDate) || isNaN(endDate)) {
-        return res.status(400).json({ error: 'Invalid date format for start or end.' });
-    }
-
-    const snaps = await PlcSnapshot.find({
+    const snaps = await SiteReading.find({
         tenant_id: tenantId,
         site_id:   siteId,
-        timestamp: { $gte: startDate, $lte: endDate }
+        timestamp: { $gte: since }
     }).sort({ timestamp: 1 }).lean();
 
     return res.json(snaps);

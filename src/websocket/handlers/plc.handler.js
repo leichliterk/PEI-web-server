@@ -1,23 +1,25 @@
-const PlcSnapshot = require('../../models/plcSnapshot.model');
 const plcCache    = require('../services/plcCache');
 const { getWebNamespace } = require('../namespaceRegistry');
+const SiteReading = require('../../models/siteReading.model');
 
 const plcHandler = {
     /**
      * Received from C# desktop app every ~500ms.
-     * Persists to MongoDB, caches latest, and pushes to web clients.
+     * Caches latest and pushes to web clients — not persisted to MongoDB.
      */
-    async onSnapshot(socket, data) {
+    onSnapshot(socket, data) {
         const { tenant_id, site_id } = socket.siteData;
         const timestamp = data?.timestamp ? new Date(data.timestamp) : new Date();
         const tags      = data?.tags ?? [];
 
-        const snapshot = { tenant_id, site_id, timestamp, tags };
+        console.log(`[plc:snapshot] tenant=${tenant_id} site=${site_id} tags=${tags.length} ts=${timestamp.toISOString()}`);
 
-        // Persist to MongoDB (fire-and-forget — don't block the WS event loop)
-        PlcSnapshot.create(snapshot).catch(err =>
-            console.error(`[plc.handler] Failed to persist snapshot for ${tenant_id}-${site_id}:`, err)
-        );
+        // Persist to sitereadings (fire-and-forget)
+        SiteReading.create({
+            tenant_id, site_id, timestamp,
+            date_key: timestamp.toISOString().slice(0, 10),
+            tags
+        }).catch(err => console.error(`[plc.handler] Failed to persist reading for ${tenant_id}-${site_id}:`, err));
 
         // Update in-memory cache
         plcCache.setSnapshot(tenant_id, site_id, { timestamp: timestamp.toISOString(), tags });
@@ -25,9 +27,15 @@ const plcHandler = {
         // Forward to web clients watching this site
         const webNs = getWebNamespace();
         if (webNs) {
-            webNs.to(`site:${tenant_id}:${site_id}`).emit('plc:snapshot', {
+            const room   = `site:${tenant_id}:${site_id}`;
+            const sockets = webNs.adapter.rooms.get(room);
+            const count   = sockets ? sockets.size : 0;
+            console.log(`[plc:snapshot] → emitting to room "${room}" (${count} web client(s))`);
+            webNs.to(room).emit('plc:snapshot', {
                 tenant_id, site_id, timestamp: timestamp.toISOString(), tags
             });
+        } else {
+            console.warn('[plc:snapshot] web namespace not available');
         }
     },
 
