@@ -5,6 +5,7 @@ const server = http.createServer(app);
 const dotenv = require("dotenv");
 dotenv.config();
 const connectToMongo = require('./src/config/db');
+const fcm = require('./src/services/fcm.service');
 const cors = require('cors');
 const { initializeWebSocket } = require('./src/websocket');
 const Tenant = require('./src/models/tenant.model');
@@ -26,12 +27,16 @@ app.use('/api/data/site-management', siteManagementRouter);
 const plcRouter = require('./src/routes/plc.routes');
 app.use('/api/data/plc', plcRouter);
 
+const mobileNotificationRouter = require('./src/routes/mobileNotification.routes');
+app.use('/api/notifications', mobileNotificationRouter);
+
 // Initialize WebSocket server
 const io = initializeWebSocket(server);
 app.set('io', io);
 
 async function startServer() {
     await connectToMongo();
+    fcm.init();
 
     // Reset all site connection statuses on startup — the in-memory
     // connection manager is empty at this point, so MongoDB must match.

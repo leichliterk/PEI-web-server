@@ -1,6 +1,7 @@
-const plcCache    = require('../services/plcCache');
+const plcCache       = require('../services/plcCache');
 const { getWebNamespace } = require('../namespaceRegistry');
-const SiteReading = require('../../models/siteReading.model');
+const SiteReading    = require('../../models/siteReading.model');
+const ruleEvaluator  = require('../services/ruleEvaluator');
 
 const plcHandler = {
     /**
@@ -20,6 +21,10 @@ const plcHandler = {
             date_key: timestamp.toISOString().slice(0, 10),
             tags
         }).catch(err => console.error(`[plc.handler] Failed to persist reading for ${tenant_id}-${site_id}:`, err));
+
+        // Evaluate alert rules (fire-and-forget)
+        ruleEvaluator.evaluate(tenant_id, site_id, tags)
+            .catch(err => console.error('[plc.handler] Rule evaluation error:', err.message));
 
         // Update in-memory cache
         plcCache.setSnapshot(tenant_id, site_id, { timestamp: timestamp.toISOString(), tags });
