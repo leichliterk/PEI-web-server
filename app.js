@@ -28,7 +28,7 @@ const plcRouter = require('./src/routes/plc.routes');
 app.use('/api/data/plc', plcRouter);
 
 const mobileNotificationRouter = require('./src/routes/mobileNotification.routes');
-app.use('/api/notifications', mobileNotificationRouter);
+app.use('/api/data/notifications', mobileNotificationRouter);
 
 // Initialize WebSocket server
 const io = initializeWebSocket(server);
