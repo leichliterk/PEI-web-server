@@ -69,9 +69,7 @@ async function evaluate(tenant_id, site_id, tags) {
                 debounceState.set(ruleId, state);
 
                 // Fire-and-forget — don't await inside the loop
-                sendAlert(rule, tag).catch(err =>
-                    console.error(`[ruleEvaluator] Alert failed for rule ${ruleId}:`, err.message)
-                );
+                sendAlert(rule, tag);
             } else {
                 debounceState.set(ruleId, state);
             }
@@ -84,23 +82,32 @@ async function evaluate(tenant_id, site_id, tags) {
 }
 
 async function sendAlert(rule, tag) {
-    const fcmToken = await FcmToken.findOne({ auth0_id: rule.auth0_id }).lean();
-    if (!fcmToken) return; // user has no registered device
-
+    const ruleId = rule._id.toString();
     const operatorSymbol = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=', neq: '≠' }[rule.operator] ?? rule.operator;
     const unit = rule.tag_unit ? ` ${rule.tag_unit}` : '';
-
-    const title = `PEI Alert — ${rule.site_name}`;
     const body  = `${rule.tag_display_name} ${operatorSymbol} ${rule.threshold}${unit} (currently ${tag.value}${unit})`;
 
-    await fcm.sendPush(fcmToken.token, title, body, {
-        site_id:  String(rule.site_id),
-        tag_name: rule.tag_name,
-        rule_id:  rule._id.toString(),
-        value:    String(tag.value)
-    });
+    console.log(`[ruleEvaluator] Rule triggered | rule=${ruleId} user=${rule.auth0_id} site=${rule.tenant_id}-${rule.site_id} condition="${body}"`);
 
-    console.log(`[ruleEvaluator] Alert sent to ${rule.auth0_id}: ${body}`);
+    const fcmToken = await FcmToken.findOne({ auth0_id: rule.auth0_id }).lean();
+    if (!fcmToken) {
+        console.warn(`[ruleEvaluator] No FCM token for user ${rule.auth0_id} — push skipped`);
+        return;
+    }
+
+    const title = `PEI Alert — ${rule.site_name}`;
+
+    try {
+        await fcm.sendPush(fcmToken.token, title, body, {
+            site_id:  String(rule.site_id),
+            tag_name: rule.tag_name,
+            rule_id:  ruleId,
+            value:    String(tag.value)
+        });
+        console.log(`[ruleEvaluator] Push sent | user=${rule.auth0_id} token=${fcmToken.token.slice(0, 20)}... msg="${body}"`);
+    } catch (err) {
+        console.error(`[ruleEvaluator] Push failed | user=${rule.auth0_id} rule=${ruleId} error="${err.message}"`);
+    }
 }
 
 module.exports = { evaluate };
