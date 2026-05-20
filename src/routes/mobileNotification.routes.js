@@ -5,6 +5,7 @@ const {
     getRules,
     createRule,
     updateRule,
+    editRule,
     deleteRule
 } = require('../controllers/mobileNotification.controller');
 
@@ -19,6 +20,7 @@ router.route('/rules')
     .post(createRule);
 
 router.route('/rules/:id')
+    .put(editRule)
     .patch(updateRule)
     .delete(deleteRule);
 

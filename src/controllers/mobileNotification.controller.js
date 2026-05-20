@@ -114,6 +114,47 @@ const updateRule = asyncHandler(async (req, res) => {
 });
 
 /**
+ * PUT /api/notifications/rules/:id
+ * Edit an existing rule's condition fields. Returns the updated rule.
+ */
+const editRule = asyncHandler(async (req, res) => {
+    const auth0_id = req.auth.payload.sub;
+    const { tag_name, tag_display_name, tag_unit, operator, threshold } = req.body;
+
+    const OPERATORS = ['gt', 'gte', 'lt', 'lte', 'eq', 'neq'];
+
+    if (operator && !OPERATORS.includes(operator)) {
+        return res.status(400).json({ error: `operator must be one of: ${OPERATORS.join(', ')}` });
+    }
+
+    const update = {};
+    if (tag_name         !== undefined) update.tag_name         = tag_name;
+    if (tag_display_name !== undefined) update.tag_display_name = tag_display_name;
+    if (tag_unit         !== undefined) update.tag_unit         = tag_unit;
+    if (operator         !== undefined) update.operator         = operator;
+    if (threshold        !== undefined) update.threshold        = parseFloat(threshold);
+
+    if (Object.keys(update).length === 0) {
+        return res.status(400).json({ error: 'Nothing to update' });
+    }
+
+    // Fetch the existing rule to rebuild the label with merged values
+    const existing = await NotificationRule.findOne({ _id: req.params.id, auth0_id }).lean();
+    if (!existing) return res.status(404).json({ error: 'Rule not found' });
+
+    const merged = { ...existing, ...update };
+    update.label = buildLabel(merged);
+
+    const rule = await NotificationRule.findOneAndUpdate(
+        { _id: req.params.id, auth0_id },
+        update,
+        { new: true }
+    ).lean();
+
+    return res.json(formatRule(rule));
+});
+
+/**
  * DELETE /api/notifications/rules/:id
  */
 const deleteRule = asyncHandler(async (req, res) => {
@@ -126,4 +167,4 @@ const deleteRule = asyncHandler(async (req, res) => {
     return res.json({ ok: true });
 });
 
-module.exports = { registerToken, getRules, createRule, updateRule, deleteRule };
+module.exports = { registerToken, getRules, createRule, updateRule, editRule, deleteRule };
