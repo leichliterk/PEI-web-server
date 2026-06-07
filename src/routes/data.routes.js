@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 
 const { about } = require('../controllers/utility.controller');
-const { getAllUsers, getUser, userExists, registerUser, updateUser  } = require('../controllers/user.controller');
+const { getAllUsers, getUser, userExists, registerUser, updateUser, deleteAuth0Account } = require('../controllers/user.controller');
 const { updateSiteName, getConnectionUptime } = require('../controllers/site.controller');
 const { getTenantById } = require('../controllers/tenant.controller');
 const { getSiteFiles, downloadFile } = require('../controllers/file.controller');
@@ -70,6 +70,8 @@ router.route('/user/check/:email/').get(userExists);
 router.route('/user/registerUser').post(registerUser);
 
 router.route('/user/updateUser').put(updateUser);
+
+router.route('/user/deleteAuth0Account').post(requireAuth, requireAdmin, deleteAuth0Account);
 
 
 
