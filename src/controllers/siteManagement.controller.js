@@ -43,16 +43,16 @@ function sendCommand(socket, emitEvent, ackEvent, payload) {
  */
 const getStatus = asyncHandler(async (req, res) => {
     const tenantId = parseInt(req.params.tenant_id);
-    const siteId   = parseInt(req.params.site_id);
+    const siteId   = req.params.site_id;
 
-    if (isNaN(tenantId) || isNaN(siteId)) {
-        return res.status(400).json({ error: 'tenant_id and site_id must be integers.' });
+    if (isNaN(tenantId)) {
+        return res.status(400).json({ error: 'tenant_id must be an integer.' });
     }
 
     const tenant = await Tenant.findOne({ tenant_id: tenantId }).lean();
     if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
 
-    const site = (tenant.sites || []).find(s => s.site_id === siteId);
+    const site = (tenant.sites || []).find(s => String(s.site_id) === siteId);
     if (!site) return res.status(404).json({ error: 'Site not found.' });
 
     const cached = siteStatusCache.getStatus(tenantId, siteId);
@@ -73,7 +73,7 @@ const getStatus = asyncHandler(async (req, res) => {
  */
 const serviceCommand = asyncHandler(async (req, res) => {
     const tenantId = parseInt(req.params.tenant_id);
-    const siteId   = parseInt(req.params.site_id);
+    const siteId   = req.params.site_id;
     const { action } = req.params;
 
     if (!['stop', 'start', 'restart'].includes(action)) {
@@ -95,7 +95,7 @@ const serviceCommand = asyncHandler(async (req, res) => {
  */
 const ftpCommand = asyncHandler(async (req, res) => {
     const tenantId = parseInt(req.params.tenant_id);
-    const siteId   = parseInt(req.params.site_id);
+    const siteId   = req.params.site_id;
     const { action } = req.params;
 
     if (!['pause', 'resume', 'full-upload'].includes(action)) {

@@ -7,7 +7,7 @@ const siteFileSchema = new mongoose.Schema({
         index: true
     },
     site_id: {
-        type: Number,
+        type: String,
         required: true,
         index: true
     },

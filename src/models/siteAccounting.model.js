@@ -7,7 +7,7 @@ const siteAccountingSchema = new mongoose.Schema({
     timestamp:      { type: Date,   required: true },
     date_key:       { type: String, required: true },
     tenant_id:      { type: Number, required: true },
-    site_id:        { type: Number, required: true },
+    site_id:        { type: String, required: true },
     flr_flow:       { type: Number },
     flr_temp_50x:   { type: Number },
     flr_temp_502:   { type: Number },

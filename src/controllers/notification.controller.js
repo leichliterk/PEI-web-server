@@ -33,7 +33,7 @@ const getSiteNotifications = asyncHandler(async (req, res) => {
     const filter = {
         recipient_type: 'site',
         tenant_id: parseInt(tenant_id),
-        site_id: parseInt(site_id)
+        site_id
     };
     if (unread_only === 'true') filter.read_at = null;
 
@@ -94,7 +94,7 @@ const markAllSiteNotificationsRead = asyncHandler(async (req, res) => {
         {
             recipient_type: 'site',
             tenant_id: parseInt(tenant_id),
-            site_id: parseInt(site_id),
+            site_id,
             read_at: null
         },
         { read_at: now, expires_at: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) }
