@@ -17,8 +17,8 @@ const getLatest = asyncHandler(async (req, res) => {
     const cached = plcCache.getSnapshot(tenantId, siteId);
     if (cached) return res.json({ tenant_id: tenantId, site_id: siteId, ...cached });
 
-    // Cache miss — query DB
-    const snap = await SiteReading.findOne({ tenant_id: tenantId, site_id: siteId })
+    // Cache miss — query DB; $in handles legacy numeric site_ids in the time-series collection
+    const snap = await SiteReading.findOne({ tenant_id: tenantId, site_id: { $in: [siteId, parseInt(siteId)] } })
         .sort({ timestamp: -1 })
         .lean();
 
@@ -45,7 +45,7 @@ const getSnapshots = asyncHandler(async (req, res) => {
 
     const snaps = await SiteReading.find({
         tenant_id: tenantId,
-        site_id:   siteId,
+        site_id:   { $in: [siteId, parseInt(siteId)] },
         timestamp: { $gte: since }
     }).sort({ timestamp: 1 }).lean();
 

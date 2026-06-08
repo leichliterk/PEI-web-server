@@ -28,57 +28,35 @@ if (!MONGODB_URI) {
     process.exit(1);
 }
 
-// Collections where site_id is a single Number field
+// Note: sitereadings and siteaccounting are time-series collections —
+// MongoDB does not support in-place updates on them. The readings.controller
+// handles both numeric and string site_id at query time instead.
 const SINGLE_FIELD_COLLECTIONS = [
     'plcsnapshots',
-    'sitereadings',
-    'siteaccounting',
     'sitefiles',
     'notifications',
     'notificationrules',
-    'otareleaseres',     // OtaReleaseResponse
+    'otareleaseres',
     'connectionsessions',
 ];
 
 async function migrateSingleField(db, collectionName) {
-    const col = db.collection(collectionName);
-
-    // Find all docs where site_id is stored as a number
-    const cursor = col.find({ site_id: { $type: 'number' } });
-    let updated = 0;
-
-    while (await cursor.hasNext()) {
-        const doc = await cursor.next();
-        await col.updateOne(
-            { _id: doc._id },
-            { $set: { site_id: String(doc.site_id) } }
-        );
-        updated++;
-    }
-
-    console.log(`  ${collectionName}: ${updated} document(s) updated`);
-    return updated;
+    const result = await db.collection(collectionName).updateMany(
+        { site_id: { $type: 'number' } },
+        [{ $set: { site_id: { $toString: '$site_id' } } }]
+    );
+    console.log(`  ${collectionName}: ${result.modifiedCount} document(s) updated`);
+    return result.modifiedCount;
 }
 
 async function migrateUsersArray(db) {
-    const col = db.collection('users');
-
-    // Find all docs where site_ids contains at least one number
-    const cursor = col.find({ site_ids: { $elemMatch: { $type: 'number' } } });
-    let updated = 0;
-
-    while (await cursor.hasNext()) {
-        const doc = await cursor.next();
-        const converted = (doc.site_ids || []).map(id => String(id));
-        await col.updateOne(
-            { _id: doc._id },
-            { $set: { site_ids: converted } }
-        );
-        updated++;
-    }
-
-    console.log(`  users (site_ids): ${updated} document(s) updated`);
-    return updated;
+    // Convert each numeric element in site_ids to a string
+    const result = await db.collection('users').updateMany(
+        { site_ids: { $elemMatch: { $type: 'number' } } },
+        [{ $set: { site_ids: { $map: { input: '$site_ids', as: 'id', in: { $toString: '$$id' } } } } }]
+    );
+    console.log(`  users (site_ids): ${result.modifiedCount} document(s) updated`);
+    return result.modifiedCount;
 }
 
 async function run() {
@@ -88,7 +66,6 @@ async function run() {
         await client.connect();
         console.log('Connected to MongoDB\n');
 
-        // Derive DB name from the URI (last path segment), default to 'staging'
         const dbName = MONGODB_URI.split('/').pop().split('?')[0] || 'staging';
         const db = client.db(dbName);
 

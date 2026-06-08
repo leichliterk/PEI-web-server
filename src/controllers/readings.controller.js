@@ -32,9 +32,13 @@ async function getReadings(Model, req, res) {
         return res.status(400).json({ message: 'start must be before end.' });
     }
 
+    // Query by both string and numeric site_id to support legacy time-series
+    // documents that predate the site_id string migration.
+    const siteIdQuery = { $in: [site_id, parseInt(site_id)] };
+
     const readings = await Model.find({
         tenant_id: tenantIdNum,
-        site_id,
+        site_id: siteIdQuery,
         timestamp: { $gte: startDate, $lte: endDate }
     })
         .select('-_id -__v -tenant_id -site_id')
@@ -71,7 +75,8 @@ const getLatestSiteData = asyncHandler(async (req, res) => {
         { $match: { tenant_id: tenantIdNum } },
         { $sort:  { timestamp: -1 } },
         { $group: {
-            _id:            '$site_id',
+            // Coerce to string so legacy numeric site_ids group with new string ones
+            _id:            { $toString: '$site_id' },
             timestamp:      { $first: '$timestamp' },
             flr_flow:       { $first: '$flr_flow' },
             ch4:            { $first: '$ch4' },
