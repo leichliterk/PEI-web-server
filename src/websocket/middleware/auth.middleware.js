@@ -20,7 +20,7 @@ async function authMiddleware(socket, next) {
             return next(new Error('Invalid tenant'));
         }
 
-        const site = tenant.sites.find(s => s.site_id === parseInt(site_id));
+        const site = tenant.sites.find(s => String(s.site_id) === site_id);
 
         if (!site) {
             return next(new Error('Invalid site'));
@@ -36,7 +36,7 @@ async function authMiddleware(socket, next) {
         // Attach site info to socket for later use
         socket.siteData = {
             tenant_id: parseInt(tenant_id),
-            site_id: parseInt(site_id),
+            site_id,
             site_name: site.name,
             connection_source: connection_source || 'unknown'
         };
@@ -44,7 +44,7 @@ async function authMiddleware(socket, next) {
         // Update app_version on the site if provided
         if (app_version) {
             await Tenant.findOneAndUpdate(
-                { tenant_id: parseInt(tenant_id), 'sites.site_id': parseInt(site_id) },
+                { tenant_id: parseInt(tenant_id), 'sites.site_id': site_id },
                 { $set: { 'sites.$.app_version': app_version } }
             );
         }

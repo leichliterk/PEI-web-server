@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const plcSnapshotSchema = new mongoose.Schema({
     tenant_id: { type: Number, required: true },
-    site_id:   { type: Number, required: true },
+    site_id:   { type: String, required: true },
     timestamp: { type: Date,   required: true },
     tags: [{
         name:  { type: String },

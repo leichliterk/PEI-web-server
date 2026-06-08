@@ -8,10 +8,10 @@ const SiteReading = require('../models/siteReading.model');
  */
 const getLatest = asyncHandler(async (req, res) => {
     const tenantId = parseInt(req.params.tenant_id);
-    const siteId   = parseInt(req.params.site_id);
+    const siteId   = req.params.site_id;
 
-    if (isNaN(tenantId) || isNaN(siteId)) {
-        return res.status(400).json({ error: 'tenant_id and site_id must be integers.' });
+    if (isNaN(tenantId)) {
+        return res.status(400).json({ error: 'tenant_id must be an integer.' });
     }
 
     const cached = plcCache.getSnapshot(tenantId, siteId);
@@ -34,11 +34,11 @@ const getLatest = asyncHandler(async (req, res) => {
  */
 const getSnapshots = asyncHandler(async (req, res) => {
     const tenantId = parseInt(req.params.tenant_id);
-    const siteId   = parseInt(req.params.site_id);
+    const siteId   = req.params.site_id;
     const minutes  = parseInt(req.query.minutes) || 60;
 
-    if (isNaN(tenantId) || isNaN(siteId)) {
-        return res.status(400).json({ error: 'tenant_id and site_id must be integers.' });
+    if (isNaN(tenantId)) {
+        return res.status(400).json({ error: 'tenant_id must be an integer.' });
     }
 
     const since = new Date(Date.now() - minutes * 60 * 1000);
@@ -58,10 +58,10 @@ const getSnapshots = asyncHandler(async (req, res) => {
  */
 const getTags = asyncHandler(async (req, res) => {
     const tenantId = parseInt(req.params.tenant_id);
-    const siteId   = parseInt(req.params.site_id);
+    const siteId   = req.params.site_id;
 
-    if (isNaN(tenantId) || isNaN(siteId)) {
-        return res.status(400).json({ error: 'tenant_id and site_id must be integers.' });
+    if (isNaN(tenantId)) {
+        return res.status(400).json({ error: 'tenant_id must be an integer.' });
     }
 
     const cached = plcCache.getTags(tenantId, siteId);

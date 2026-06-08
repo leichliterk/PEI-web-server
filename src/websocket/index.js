@@ -70,12 +70,12 @@ function initializeWebSocket(httpServer) {
         socket.on('subscribe_tenant',   (data) => webHandler.onSubscribeTenant(socket, data));
         socket.on('unsubscribe_tenant', (data) => webHandler.onUnsubscribeTenant(socket, data));
         socket.on('subscribe_site',     (data) => {
-            const siteId   = parseInt(data?.site_id);
+            const siteId   = data?.site_id;
             const tenantId = parseInt(data?.tenant_id);
             if (siteId && tenantId) socket.join(`site:${tenantId}:${siteId}`);
         });
         socket.on('unsubscribe_site',   (data) => {
-            const siteId   = parseInt(data?.site_id);
+            const siteId   = data?.site_id;
             const tenantId = parseInt(data?.tenant_id);
             if (siteId && tenantId) socket.leave(`site:${tenantId}:${siteId}`);
         });

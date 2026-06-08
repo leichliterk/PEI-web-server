@@ -5,7 +5,7 @@ const OPERATORS = ['gt', 'gte', 'lt', 'lte', 'eq', 'neq'];
 const notificationRuleSchema = new mongoose.Schema({
     auth0_id:         { type: String, required: true },
     tenant_id:        { type: Number, required: true },
-    site_id:          { type: Number, required: true },
+    site_id:          { type: String, required: true },
     site_name:        { type: String, required: true },
     tag_name:         { type: String, required: true },
     tag_display_name: { type: String, required: true },

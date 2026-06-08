@@ -272,10 +272,10 @@ const otaController = {
         }
 
         const tenantId = parseInt(req.body.tenant_id);
-        const siteId   = parseInt(req.body.site_id);
+        const siteId   = req.body.site_id;
 
-        if (isNaN(tenantId) || isNaN(siteId)) {
-            return res.status(400).json({ error: 'tenant_id and site_id are required integers' });
+        if (isNaN(tenantId) || !siteId) {
+            return res.status(400).json({ error: 'tenant_id (integer) and site_id are required' });
         }
 
         const release = await OtaRelease.findById(req.params.id);

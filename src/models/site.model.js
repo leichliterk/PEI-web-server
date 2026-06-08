@@ -6,7 +6,7 @@ const siteSchema = new mongoose.Schema({
         required: true
     },
     site_id: {
-        type: Number,
+        type: String,
         required: true
     },
     uptime: {
