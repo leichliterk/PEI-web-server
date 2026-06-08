@@ -19,7 +19,6 @@ const updateSiteName = asyncHandler(async (req, res, next) => {
 
     try {
         const tenantIdNum = parseInt(tenant_id);
-        const siteIdNum = parseInt(site_id);
 
         // Find the tenant
         const tenant = await Tenant.findOne({ tenant_id: tenantIdNum });
@@ -29,7 +28,7 @@ const updateSiteName = asyncHandler(async (req, res, next) => {
         }
 
         // Find the site in the tenant's sites array
-        const siteIndex = tenant.sites.findIndex(site => site.site_id === siteIdNum);
+        const siteIndex = tenant.sites.findIndex(site => String(site.site_id) === site_id);
 
         if (siteIndex === -1) {
             return res.status(404).json({ message: "Site not found in tenant." });
@@ -47,7 +46,7 @@ const updateSiteName = asyncHandler(async (req, res, next) => {
         return res.status(200).json({
             message: "Site name updated successfully.",
             tenant_id: tenantIdNum,
-            site_id: siteIdNum,
+            site_id,
             name: siteName.trim(),
             updatedSite: savedTenant.sites[siteIndex]
         });
@@ -65,7 +64,6 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
     }
 
     const tenantIdNum = parseInt(tenant_id);
-    const siteIdNum = parseInt(site_id);
     const daysNum = parseInt(days);
 
     if (isNaN(daysNum) || daysNum < 1) {
@@ -79,7 +77,7 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
         // Get all sessions within the time range
         const sessions = await ConnectionSession.find({
             tenant_id: tenantIdNum,
-            site_id: siteIdNum,
+            site_id,
             connected_at: { $gte: startDate }
         }).sort({ connected_at: 1 });
 
@@ -108,7 +106,7 @@ const getConnectionUptime = asyncHandler(async (req, res) => {
 
         return res.status(200).json({
             tenant_id: tenantIdNum,
-            site_id: siteIdNum,
+            site_id,
             days: daysNum,
             start_date: startDate.toISOString(),
             end_date: now.toISOString(),

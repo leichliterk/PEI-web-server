@@ -77,7 +77,7 @@ const createRule = asyncHandler(async (req, res) => {
     const ruleData = {
         auth0_id,
         tenant_id: parseInt(tenant_id),
-        site_id:   parseInt(site_id),
+        site_id,
         site_name,
         tag_name,
         tag_display_name,

@@ -16,10 +16,9 @@ async function getReadings(Model, req, res) {
     }
 
     const tenantIdNum = parseInt(tenant_id);
-    const siteIdNum   = parseInt(site_id);
 
-    if (isNaN(tenantIdNum) || isNaN(siteIdNum)) {
-        return res.status(400).json({ message: 'tenant_id and site_id must be integers.' });
+    if (isNaN(tenantIdNum)) {
+        return res.status(400).json({ message: 'tenant_id must be an integer.' });
     }
 
     const startDate = new Date(start);
@@ -35,7 +34,7 @@ async function getReadings(Model, req, res) {
 
     const readings = await Model.find({
         tenant_id: tenantIdNum,
-        site_id:   siteIdNum,
+        site_id,
         timestamp: { $gte: startDate, $lte: endDate }
     })
         .select('-_id -__v -tenant_id -site_id')
@@ -44,7 +43,7 @@ async function getReadings(Model, req, res) {
 
     return res.status(200).json({
         tenant_id: tenantIdNum,
-        site_id:   siteIdNum,
+        site_id,
         start:     startDate.toISOString(),
         end:       endDate.toISOString(),
         count:     readings.length,

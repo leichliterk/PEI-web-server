@@ -6,10 +6,9 @@ const getSiteFiles = asyncHandler(async (req, res) => {
     const { tenant_id, site_id } = req.params;
 
     const tenantIdNum = parseInt(tenant_id);
-    const siteIdNum = parseInt(site_id);
 
     const files = await SiteFile.find(
-        { tenant_id: tenantIdNum, site_id: siteIdNum },
+        { tenant_id: tenantIdNum, site_id },
         { content: 0 }  // Exclude binary content from listing
     ).sort({ createdAt: -1 });
 

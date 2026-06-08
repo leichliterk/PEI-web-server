@@ -44,7 +44,7 @@ const userSchema = new mongoose.Schema({
         default: null
     },
     site_ids: {
-        type: [Number],
+        type: [String],
         default: []    // empty = access to all sites in the tenant
     }
 }, { timestamps: true } );

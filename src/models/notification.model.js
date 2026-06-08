@@ -13,7 +13,7 @@ const notificationSchema = new mongoose.Schema({
         default: null
     },
     site_id: {
-        type: Number,
+        type: String,
         default: null
     },
 

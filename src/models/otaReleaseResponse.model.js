@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const otaReleaseResponseSchema = new mongoose.Schema({
     release_id:        { type: mongoose.Schema.Types.ObjectId, ref: 'OtaRelease', required: true },
     tenant_id:         { type: Number, required: true },
-    site_id:           { type: Number, required: true },
+    site_id:           { type: String, required: true },
     accepted:          { type: Boolean, required: true },
     responded_at:      { type: Date, default: Date.now },
     installed_at:      { type: Date },

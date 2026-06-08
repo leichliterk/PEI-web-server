@@ -68,10 +68,54 @@ const updateUser = asyncHandler(async  (req, res, next) => {
     }
 })
 
+const deleteAuth0Account = asyncHandler(async (req, res, next) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'email is required' });
+
+    const user = await UserSchema.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const domain = process.env.AUTH0_DOMAIN;
+
+    // Get a fresh Management API token via client credentials
+    const tokenRes = await superagent
+        .post(`https://${domain}/oauth/token`)
+        .send({
+            grant_type: 'client_credentials',
+            client_id: process.env.APPLICATION_CLIENT_ID,
+            client_secret: process.env.APPLICATION_CLIENT_SECRET,
+            audience: `https://${domain}/api/v2/`
+        })
+        .catch((err) => {
+            return res.status(502).json({ message: 'Failed to obtain Auth0 management token', error: err.message });
+        });
+
+    if (res.headersSent) return;
+
+    const managementToken = tokenRes.body.access_token;
+
+    // Auth0 Management API requires the full user ID (e.g. auth0|<hex>)
+    const auth0UserId = user.auth0_id.includes('|')
+        ? user.auth0_id
+        : `auth0|${user.auth0_id}`;
+
+    await superagent
+        .delete(`https://${domain}/api/v2/users/${encodeURIComponent(auth0UserId)}`)
+        .set('Authorization', `Bearer ${managementToken}`)
+        .catch((err) => {
+            return res.status(502).json({ message: 'Failed to delete Auth0 user', error: err.message });
+        });
+
+    if (res.headersSent) return;
+
+    return res.json({ message: 'Auth0 account deleted', email: user.email });
+});
+
 module.exports = {
     getUser,
     getAllUsers,
     userExists,
     registerUser,
-    updateUser
+    updateUser,
+    deleteAuth0Account
 }
