@@ -20,7 +20,8 @@ const plcHandler = {
             tenant_id, site_id, timestamp,
             date_key: timestamp.toISOString().slice(0, 10),
             tags
-        }).catch(err => console.error(`[plc.handler] Failed to persist reading for ${tenant_id}-${site_id}:`, err));
+        }).then(() => console.log(`[plc.handler] Persisted reading for ${tenant_id}-${site_id}`))
+          .catch(err => console.error(`[plc.handler] Failed to persist reading for ${tenant_id}-${site_id}:`, err));
 
         // Evaluate alert rules (fire-and-forget)
         ruleEvaluator.evaluate(tenant_id, site_id, tags)

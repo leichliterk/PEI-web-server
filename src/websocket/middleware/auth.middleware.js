@@ -20,7 +20,7 @@ async function authMiddleware(socket, next) {
             return next(new Error('Invalid tenant'));
         }
 
-        const site = tenant.sites.find(s => String(s.site_id) === site_id);
+        const site = tenant.sites.find(s => s.site_id === site_id);
 
         if (!site) {
             return next(new Error('Invalid site'));

@@ -28,7 +28,7 @@ const updateSiteName = asyncHandler(async (req, res, next) => {
         }
 
         // Find the site in the tenant's sites array
-        const siteIndex = tenant.sites.findIndex(site => String(site.site_id) === site_id);
+        const siteIndex = tenant.sites.findIndex(site => site.site_id === site_id);
 
         if (siteIndex === -1) {
             return res.status(404).json({ message: "Site not found in tenant." });
