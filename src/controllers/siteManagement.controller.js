@@ -52,7 +52,7 @@ const getStatus = asyncHandler(async (req, res) => {
     const tenant = await Tenant.findOne({ tenant_id: tenantId }).lean();
     if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
 
-    const site = (tenant.sites || []).find(s => String(s.site_id) === siteId);
+    const site = (tenant.sites || []).find(s => s.site_id === siteId);
     if (!site) return res.status(404).json({ error: 'Site not found.' });
 
     const cached = siteStatusCache.getStatus(tenantId, siteId);
