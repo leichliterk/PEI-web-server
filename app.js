@@ -30,6 +30,9 @@ app.use('/api/data/plc', plcRouter);
 const mobileNotificationRouter = require('./src/routes/mobileNotification.routes');
 app.use('/api/data/notifications', mobileNotificationRouter);
 
+const siteAdminRouter = require('./src/routes/siteAdmin.routes');
+app.use('/api/data/site-admin', siteAdminRouter);
+
 // Initialize WebSocket server
 const io = initializeWebSocket(server);
 app.set('io', io);
