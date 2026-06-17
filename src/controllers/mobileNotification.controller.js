@@ -9,11 +9,12 @@ function formatRule(rule) {
         tenant_id:        rule.tenant_id,
         site_id:          rule.site_id,
         site_name:        rule.site_name,
-        tag_name:         rule.tag_name,
-        tag_display_name: rule.tag_display_name,
+        trigger:          rule.trigger ?? 'plc_tag',
+        tag_name:         rule.tag_name ?? null,
+        tag_display_name: rule.tag_display_name ?? null,
         tag_unit:         rule.tag_unit ?? null,
-        operator:         rule.operator,
-        threshold:        rule.threshold,
+        operator:         rule.operator ?? null,
+        threshold:        rule.threshold ?? null,
         label:            rule.label ?? null,
         enabled:          rule.enabled,
         created_at:       rule.created_at
@@ -60,32 +61,38 @@ const getRules = asyncHandler(async (req, res) => {
 /**
  * POST /api/notifications/rules
  * Creates a new rule for the authenticated user.
+ * Body for plc_tag:    { tenant_id, site_id, site_name, trigger: 'plc_tag', tag_name, tag_display_name, tag_unit?, operator, threshold }
+ * Body for site event: { tenant_id, site_id, site_name, trigger: 'site_online' | 'site_offline' }
  */
 const createRule = asyncHandler(async (req, res) => {
     const auth0_id = req.auth.payload.sub;
-    const { tenant_id, site_id, site_name, tag_name, tag_display_name, tag_unit, operator, threshold } = req.body;
+    const { tenant_id, site_id, site_name, trigger = 'plc_tag',
+            tag_name, tag_display_name, tag_unit, operator, threshold } = req.body;
 
     const OPERATORS = ['gt', 'gte', 'lt', 'lte', 'eq', 'neq'];
+    const TRIGGERS  = ['plc_tag', 'site_online', 'site_offline'];
 
-    if (!tenant_id || !site_id || !site_name || !tag_name || !tag_display_name || !operator || threshold === undefined) {
-        return res.status(400).json({ error: 'tenant_id, site_id, site_name, tag_name, tag_display_name, operator, and threshold are required' });
+    if (!tenant_id || !site_id || !site_name) {
+        return res.status(400).json({ error: 'tenant_id, site_id, and site_name are required' });
     }
-    if (!OPERATORS.includes(operator)) {
-        return res.status(400).json({ error: `operator must be one of: ${OPERATORS.join(', ')}` });
+    if (!TRIGGERS.includes(trigger)) {
+        return res.status(400).json({ error: `trigger must be one of: ${TRIGGERS.join(', ')}` });
     }
 
-    const ruleData = {
-        auth0_id,
-        tenant_id: parseInt(tenant_id),
-        site_id,
-        site_name,
-        tag_name,
-        tag_display_name,
-        tag_unit:  tag_unit ?? null,
-        operator,
-        threshold: parseFloat(threshold)
-    };
-    ruleData.label = buildLabel(ruleData);
+    let ruleData = { auth0_id, tenant_id: parseInt(tenant_id), site_id, site_name, trigger };
+
+    if (trigger === 'plc_tag') {
+        if (!tag_name || !tag_display_name || !operator || threshold === undefined) {
+            return res.status(400).json({ error: 'tag_name, tag_display_name, operator, and threshold are required for plc_tag rules' });
+        }
+        if (!OPERATORS.includes(operator)) {
+            return res.status(400).json({ error: `operator must be one of: ${OPERATORS.join(', ')}` });
+        }
+        ruleData = { ...ruleData, tag_name, tag_display_name, tag_unit: tag_unit ?? null, operator, threshold: parseFloat(threshold) };
+        ruleData.label = buildLabel(ruleData);
+    } else {
+        ruleData.label = trigger === 'site_online' ? `${site_name} comes online` : `${site_name} goes offline`;
+    }
 
     const rule = await NotificationRule.create(ruleData);
     return res.status(201).json(formatRule(rule));
