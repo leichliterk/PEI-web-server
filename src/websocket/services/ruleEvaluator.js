@@ -1,6 +1,7 @@
 const NotificationRule = require('../../models/notificationRule.model');
 const FcmToken = require('../../models/fcmToken.model');
 const fcm = require('../../services/fcm.service');
+const notificationService = require('./notificationService');
 
 const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -28,7 +29,7 @@ const OPERATORS = {
 async function evaluate(tenant_id, site_id, tags) {
     let rules;
     try {
-        rules = await NotificationRule.find({ tenant_id, site_id, enabled: true }).lean();
+        rules = await NotificationRule.find({ tenant_id, site_id, enabled: true, trigger: 'plc_tag' }).lean();
     } catch (err) {
         console.error('[ruleEvaluator] Failed to load rules:', err.message);
         return;
@@ -96,6 +97,14 @@ async function sendAlert(rule, tag) {
     }
 
     const title = `PEI Alert — ${rule.site_name}`;
+
+    // Send to web app
+    await notificationService.sendToUser(rule.auth0_id, {
+        title,
+        body,
+        type: 'warning',
+        data: { site_id: String(rule.site_id), tag_name: rule.tag_name, rule_id: ruleId, value: String(tag.value) }
+    }).catch(err => console.error(`[ruleEvaluator] Web notification failed | user=${rule.auth0_id} error="${err.message}"`));
 
     try {
         await fcm.sendPush(fcmToken.token, title, body, {
