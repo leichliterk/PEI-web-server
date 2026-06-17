@@ -1,5 +1,5 @@
 const Notification = require('../../models/notification.model');
-const User = require('../../models/user.model');
+const NotificationRule = require('../../models/notificationRule.model');
 const connectionManager = require('./connectionManager');
 const { getWebNamespace, getDesktopNamespace } = require('../namespaceRegistry');
 
@@ -164,28 +164,27 @@ const notificationService = {
      * @param {boolean} status - true = online, false = offline
      */
     async notifyUsersOfSiteStatus(tenant_id, site_id, site_name, status) {
-        const users = await User.find({
-            tenant_id,
-            $or: [
-                { site_ids: site_id },           // user has explicit access to this site
-                { site_ids: { $size: 0 } }       // empty array = access to all sites in tenant
-            ]
-        }).select('auth0_id');
+        const trigger = status ? 'site_online' : 'site_offline';
 
-        if (users.length === 0) return;
+        const rules = await NotificationRule.find({ tenant_id, site_id, trigger, enabled: true })
+            .select('auth0_id')
+            .lean();
+
+        if (rules.length === 0) return;
 
         const title = status ? 'Site Online' : 'Site Offline';
-        const body  = status
-            ? `${site_name} is now online.`
-            : `${site_name} has gone offline.`;
+        const body  = status ? `${site_name} is now online.` : `${site_name} has gone offline.`;
         const type  = status ? 'success' : 'warning';
         const data  = { tenant_id, site_id };
 
+        // Deduplicate in case a user has multiple rules for the same event
+        const auth0Ids = [...new Set(rules.map(r => r.auth0_id))];
+
         await Promise.all(
-            users.map(user => this.sendToUser(user.auth0_id, { title, body, type, data }))
+            auth0Ids.map(auth0_id => this.sendToUser(auth0_id, { title, body, type, data }))
         );
 
-        console.log(`Notified ${users.length} user(s) of ${site_name} going ${status ? 'online' : 'offline'}`);
+        console.log(`Notified ${auth0Ids.length} user(s) of ${site_name} going ${status ? 'online' : 'offline'}`);
     }
 };
 
