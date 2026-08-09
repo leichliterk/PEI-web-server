@@ -61,7 +61,7 @@ router.route('/about').get(about);
  * 
  ****************************************/
 
-router.route('/user/users').get(getAllUsers);
+router.route('/user/users').get(requireAuth, requireAdmin, getAllUsers);
 
 router.route('/user/email/:email').get(getUser);
 

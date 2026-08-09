@@ -22,7 +22,7 @@ async function requireAdmin(req, res, next) {
     try {
         const user = await User.findOne({ auth0_id }).lean();
         if (!user)              return res.status(401).json({ error: 'User not found' });
-        if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+        if (!['admin', 'global_admin'].includes(user.role)) return res.status(403).json({ error: 'Admin access required' });
 
         req.appUser = user;
         next();
