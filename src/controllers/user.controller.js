@@ -17,7 +17,8 @@ const userExists = asyncHandler(async (req, res, next) => {
 });
 
 const getAllUsers = asyncHandler(async (req, res, next) => {
-    const users = await UserSchema.find();
+    const { tenant_id } = req.appUser;
+    const users = await UserSchema.find({ tenant_id });
     if(!users) return res.status(404).json({ message: 'No users found.' });
     return res.json({ data: users, records: users.length,  status: "success", code: "001" });
 });
