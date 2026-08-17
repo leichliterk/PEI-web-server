@@ -5,7 +5,7 @@ const { about } = require('../controllers/utility.controller');
 const { getAllUsers, getUser, userExists, registerUser, updateUser, deleteAuth0Account } = require('../controllers/user.controller');
 const { updateSiteName, getConnectionUptime } = require('../controllers/site.controller');
 const { getTenantById } = require('../controllers/tenant.controller');
-const { getSiteFiles, downloadFile } = require('../controllers/file.controller');
+const { getSiteFiles, downloadFile, downloadZip } = require('../controllers/file.controller');
 const { getSiteReadings, getSiteAccountingData, getLatestSiteData } = require('../controllers/readings.controller');
 const {
     getUserNotifications,
@@ -102,6 +102,7 @@ router.route('/site/uptime/:tenant_id/:site_id').get(getConnectionUptime);
 
 // Download a file by ID
 router.route('/files/download/:file_id').get(downloadFile);
+router.route('/files/download-zip').get(requireAuth, requireAdmin, downloadZip);
 
 // List files for a site
 router.route('/files/:tenant_id/:site_id').get(getSiteFiles);
