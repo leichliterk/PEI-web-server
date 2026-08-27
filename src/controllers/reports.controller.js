@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const SiteAccounting = require('../models/siteAccounting.model');
+const SiteReading = require('../models/siteReading.model');
 const Tenant = require('../models/tenant.model');
 
 const CONSTANTS = { T: 15, DE: 99.5, CF: 25, PEMDF: 2.744 };
@@ -30,12 +31,57 @@ const getDailyDestructionCredits = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'start and end query parameters are required (YYYY-MM-DD).' });
     }
 
-    const [tenant, records] = await Promise.all([
+    const startDate = new Date(start + 'T00:00:00.000Z');
+    const endDate   = new Date(end   + 'T23:59:59.999Z');
+
+    const [tenant, records, snapshots] = await Promise.all([
         Tenant.findOne({ tenant_id: tenantId }).lean(),
         SiteAccounting.find({
             tenant_id: tenantId,
             date_key:  { $gte: start, $lte: end }
-        }).select('site_id date_key flr_flow ch4').lean()
+        }).select('site_id date_key flr_flow ch4').lean(),
+        SiteReading.aggregate([
+            { $match: { tenant_id: tenantId, timestamp: { $gte: startDate, $lte: endDate } } },
+            // Extract flare flow value from the tags array
+            { $addFields: {
+                flare_tag: { $arrayElemAt: [
+                    { $filter: { input: '$tags', as: 't', cond: { $eq: ['$$t.displayName', 'Flare flow'] } } },
+                    0
+                ]}
+            }},
+            // Only keep snapshots with a valid positive flare flow
+            { $match: { 'flare_tag.error': { $ne: true }, 'flare_tag.value': { $gt: 0 } } },
+            // Group by site + day, collect sorted timestamps
+            { $group: {
+                _id: { site_id: { $toString: '$site_id' }, date_key: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } } },
+                timestamps: { $push: '$timestamp' }
+            }},
+            // Sort timestamps within each group and compute deltas
+            { $addFields: {
+                timestamps: { $sortArray: { input: '$timestamps', sortBy: 1 } }
+            }},
+            // Compute uptime: sum of deltas between consecutive timestamps, capped at 60s each
+            { $addFields: {
+                uptime_seconds: { $reduce: {
+                    input: { $range: [1, { $size: '$timestamps' }] },
+                    initialValue: 0,
+                    in: { $let: {
+                        vars: {
+                            deltaMs: { $subtract: [
+                                { $arrayElemAt: ['$timestamps', '$$this'] },
+                                { $arrayElemAt: ['$timestamps', { $subtract: ['$$this', 1] }] }
+                            ]}
+                        },
+                        in: { $cond: [
+                            { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', 60000] }] },
+                            { $add: ['$$value', { $round: [{ $divide: ['$$deltaMs', 1000] }, 0] }] },
+                            '$$value'
+                        ]}
+                    }}
+                }}
+            }},
+            { $project: { _id: 0, site_id: '$_id.site_id', date_key: '$_id.date_key', uptime_seconds: 1 } }
+        ])
     ]);
 
     if (!tenant) {
@@ -62,13 +108,23 @@ const getDailyDestructionCredits = asyncHandler(async (req, res) => {
         cur.setUTCDate(cur.getUTCDate() + 1);
     }
 
+    // Build uptime lookup from aggregation results
+    const uptime = {};  // { date_key: { site_id: seconds } }
+    for (const row of snapshots) {
+        if (!uptime[row.date_key]) uptime[row.date_key] = {};
+        uptime[row.date_key][row.site_id] = row.uptime_seconds;
+    }
+
     // Build data matrix — null where no records existed
     const data = {};
     for (const date of dates) {
         data[date] = {};
         for (const site of sites) {
             const key = String(site.site_id);
-            data[date][key] = sums[date]?.[site.site_id] ?? null;
+            data[date][key] = {
+                credits: sums[date]?.[site.site_id] ?? null,
+                uptime:  uptime[date]?.[key] ?? 0
+            };
         }
     }
 
