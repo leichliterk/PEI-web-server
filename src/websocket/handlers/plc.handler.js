@@ -10,17 +10,20 @@ const plcHandler = {
      */
     onSnapshot(socket, data) {
         const { tenant_id, site_id } = socket.siteData;
-        const timestamp = data?.timestamp ? new Date(data.timestamp) : new Date();
-        const tags      = data?.tags ?? [];
+        const timestamp          = data?.timestamp ? new Date(data.timestamp) : new Date();
+        const tags               = data?.tags ?? [];
+        const snapshot_interval  = data?.snapshot_interval ?? null;
 
-        console.log(`[plc:snapshot] tenant=${tenant_id} site=${site_id} tags=${tags.length} ts=${timestamp.toISOString()}`);
+        console.log(`[plc:snapshot] tenant=${tenant_id} site=${site_id} tags=${tags.length} interval=${snapshot_interval}ms ts=${timestamp.toISOString()}`);
 
         // Persist to sitereadings (fire-and-forget)
         SiteReading.create({
             tenant_id, site_id, timestamp,
             date_key: timestamp.toISOString().slice(0, 10),
+            snapshot_interval,
             tags
-        }).catch(err => console.error(`[plc.handler] Failed to persist reading for ${tenant_id}-${site_id}:`, err));
+        }).then(() => console.log(`[plc.handler] Persisted reading for ${tenant_id}-${site_id}`))
+          .catch(err => console.error(`[plc.handler] Failed to persist reading for ${tenant_id}-${site_id}:`, err));
 
         // Evaluate alert rules (fire-and-forget)
         ruleEvaluator.evaluate(tenant_id, site_id, tags)
