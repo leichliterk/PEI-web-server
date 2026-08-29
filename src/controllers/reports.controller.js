@@ -51,32 +51,37 @@ const getDailyDestructionCredits = asyncHandler(async (req, res) => {
             }},
             // Only keep snapshots with a valid positive flare flow
             { $match: { 'flare_tag.error': { $ne: true }, 'flare_tag.value': { $gt: 0 } } },
-            // Group by site + day, collect sorted timestamps
+            // Group by site + day, collect sorted timestamps and intervals
             { $group: {
                 _id: { site_id: { $toString: '$site_id' }, date_key: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } } },
-                timestamps: { $push: '$timestamp' }
+                entries: { $push: { ts: '$timestamp', interval: '$snapshot_interval' } }
             }},
-            // Sort timestamps within each group and compute deltas
+            // Sort entries by timestamp within each group
             { $addFields: {
-                timestamps: { $sortArray: { input: '$timestamps', sortBy: 1 } }
+                entries: { $sortArray: { input: '$entries', sortBy: { ts: 1 } } }
             }},
-            // Compute uptime: sum of deltas between consecutive timestamps, capped at 60s each
+            // Compute uptime: sum of deltas between consecutive timestamps,
+            // capped at 2x the previous snapshot's interval (or 60s if missing)
             { $addFields: {
                 uptime_seconds: { $reduce: {
-                    input: { $range: [1, { $size: '$timestamps' }] },
+                    input: { $range: [1, { $size: '$entries' }] },
                     initialValue: 0,
                     in: { $let: {
                         vars: {
-                            deltaMs: { $subtract: [
-                                { $arrayElemAt: ['$timestamps', '$$this'] },
-                                { $arrayElemAt: ['$timestamps', { $subtract: ['$$this', 1] }] }
-                            ]}
+                            prev: { $arrayElemAt: ['$entries', { $subtract: ['$$this', 1] }] },
+                            curr: { $arrayElemAt: ['$entries', '$$this'] }
                         },
-                        in: { $cond: [
-                            { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', 60000] }] },
-                            { $add: ['$$value', { $round: [{ $divide: ['$$deltaMs', 1000] }, 0] }] },
-                            '$$value'
-                        ]}
+                        in: { $let: {
+                            vars: {
+                                deltaMs: { $subtract: ['$$curr.ts', '$$prev.ts'] },
+                                maxGapMs: { $multiply: [{ $ifNull: ['$$prev.interval', 60000] }, 2] }
+                            },
+                            in: { $cond: [
+                                { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', '$$maxGapMs'] }] },
+                                { $add: ['$$value', { $round: [{ $divide: ['$$deltaMs', 1000] }, 0] }] },
+                                '$$value'
+                            ]}
+                        }}
                     }}
                 }}
             }},
