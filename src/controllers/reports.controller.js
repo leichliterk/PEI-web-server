@@ -31,65 +31,12 @@ const getDailyDestructionCredits = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'start and end query parameters are required (YYYY-MM-DD).' });
     }
 
-    const startDate = new Date(start + 'T00:00:00.000Z');
-    const endDate   = new Date(end   + 'T23:59:59.999Z');
-
-    const [tenant, records, snapshots] = await Promise.all([
+    const [tenant, records] = await Promise.all([
         Tenant.findOne({ tenant_id: tenantId }).lean(),
         SiteAccounting.find({
             tenant_id: tenantId,
             date_key:  { $gte: start, $lte: end }
-        }).select('site_id date_key flr_flow ch4').lean(),
-        SiteReading.aggregate([
-            { $match: { tenant_id: tenantId, timestamp: { $gte: startDate, $lte: endDate } } },
-            // Extract flare flow value from the tags array
-            { $addFields: {
-                flare_tag: { $arrayElemAt: [
-                    { $filter: { input: '$tags', as: 't', cond: { $eq: ['$$t.displayName', 'Flare flow'] } } },
-                    0
-                ]}
-            }},
-            // Only keep snapshots with a valid positive flare flow
-            { $match: { 'flare_tag.error': { $ne: true }, 'flare_tag.value': { $gt: 0 } } },
-            // Strip heavy fields before sorting to reduce memory
-            { $project: { site_id: 1, timestamp: 1, snapshot_interval: 1 } },
-            // Sort by site then time so $setWindowFields can compute row-by-row deltas
-            { $sort: { site_id: 1, timestamp: 1 } },
-            // Compute previous timestamp and interval per site using a sliding window
-            { $setWindowFields: {
-                partitionBy: '$site_id',
-                sortBy: { timestamp: 1 },
-                output: {
-                    prev_ts:       { $shift: { output: '$timestamp',         by: -1, default: null } },
-                    prev_interval: { $shift: { output: '$snapshot_interval', by: -1, default: null } }
-                }
-            }},
-            // Calculate delta and determine if it counts as uptime
-            { $addFields: {
-                date_key: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
-                delta_sec: { $cond: [
-                    { $eq: ['$prev_ts', null] },
-                    0,
-                    { $let: {
-                        vars: {
-                            deltaMs:  { $subtract: ['$timestamp', '$prev_ts'] },
-                            maxGapMs: { $multiply: [{ $ifNull: ['$prev_interval', 60000] }, 2] }
-                        },
-                        in: { $cond: [
-                            { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', '$$maxGapMs'] }] },
-                            { $round: [{ $divide: ['$$deltaMs', 1000] }, 0] },
-                            0
-                        ]}
-                    }}
-                ]}
-            }},
-            // Sum per site per day
-            { $group: {
-                _id: { site_id: { $toString: '$site_id' }, date_key: '$date_key' },
-                uptime_seconds: { $sum: '$delta_sec' }
-            }},
-            { $project: { _id: 0, site_id: '$_id.site_id', date_key: '$_id.date_key', uptime_seconds: 1 } }
-        ])
+        }).select('site_id date_key flr_flow ch4').lean()
     ]);
 
     if (!tenant) {
@@ -116,14 +63,63 @@ const getDailyDestructionCredits = asyncHandler(async (req, res) => {
         cur.setUTCDate(cur.getUTCDate() + 1);
     }
 
-    // Build uptime lookup from aggregation results
+    // Compute uptime per site per day — one small aggregation each to stay under Atlas 32MB sort limit
     const uptime = {};  // { date_key: { site_id: seconds } }
-    for (const row of snapshots) {
-        if (!uptime[row.date_key]) uptime[row.date_key] = {};
-        uptime[row.date_key][row.site_id] = row.uptime_seconds;
+    for (const site of sites) {
+        for (const date of dates) {
+            const dayStart = new Date(date + 'T00:00:00.000Z');
+            const dayEnd   = new Date(date + 'T23:59:59.999Z');
+            const siteId   = site.site_id;
+
+            const result = await SiteReading.aggregate([
+                { $match: {
+                    tenant_id: tenantId,
+                    site_id: { $in: [siteId, parseInt(siteId)] },
+                    timestamp: { $gte: dayStart, $lte: dayEnd }
+                }},
+                { $addFields: {
+                    flare_tag: { $arrayElemAt: [
+                        { $filter: { input: '$tags', as: 't', cond: { $eq: ['$$t.displayName', 'Flare flow'] } } },
+                        0
+                    ]}
+                }},
+                { $match: { 'flare_tag.error': { $ne: true }, 'flare_tag.value': { $gt: 0 } } },
+                { $project: { timestamp: 1, snapshot_interval: 1 } },
+                { $sort: { timestamp: 1 } },
+                { $setWindowFields: {
+                    sortBy: { timestamp: 1 },
+                    output: {
+                        prev_ts:       { $shift: { output: '$timestamp',         by: -1, default: null } },
+                        prev_interval: { $shift: { output: '$snapshot_interval', by: -1, default: null } }
+                    }
+                }},
+                { $match: { prev_ts: { $ne: null } } },
+                { $group: {
+                    _id: null,
+                    uptime_seconds: { $sum: {
+                        $let: {
+                            vars: {
+                                deltaMs:  { $subtract: ['$timestamp', '$prev_ts'] },
+                                maxGapMs: { $multiply: [{ $ifNull: ['$prev_interval', 60000] }, 2] }
+                            },
+                            in: { $cond: [
+                                { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', '$$maxGapMs'] }] },
+                                { $round: [{ $divide: ['$$deltaMs', 1000] }, 0] },
+                                0
+                            ]}
+                        }
+                    }}
+                }}
+            ]);
+
+            if (result.length > 0 && result[0].uptime_seconds > 0) {
+                if (!uptime[date]) uptime[date] = {};
+                uptime[date][siteId] = result[0].uptime_seconds;
+            }
+        }
     }
 
-    // Build data matrix — null where no records existed
+    // Build data matrix
     const data = {};
     for (const date of dates) {
         data[date] = {};
