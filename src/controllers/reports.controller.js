@@ -100,7 +100,7 @@ const getDailyDestructionCredits = asyncHandler(async (req, res) => {
                         $let: {
                             vars: {
                                 deltaMs:  { $subtract: ['$timestamp', '$prev_ts'] },
-                                maxGapMs: { $multiply: [{ $ifNull: ['$prev_interval', 60000] }, 2] }
+                                maxGapMs: { $multiply: [{ $ifNull: ['$prev_interval', 5000] }, 2] }
                             },
                             in: { $cond: [
                                 { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', '$$maxGapMs'] }] },
