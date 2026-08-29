@@ -51,39 +51,42 @@ const getDailyDestructionCredits = asyncHandler(async (req, res) => {
             }},
             // Only keep snapshots with a valid positive flare flow
             { $match: { 'flare_tag.error': { $ne: true }, 'flare_tag.value': { $gt: 0 } } },
-            // Group by site + day, collect sorted timestamps and intervals
-            { $group: {
-                _id: { site_id: { $toString: '$site_id' }, date_key: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } } },
-                entries: { $push: { ts: '$timestamp', interval: '$snapshot_interval' } }
+            // Strip heavy fields before sorting to reduce memory
+            { $project: { site_id: 1, timestamp: 1, snapshot_interval: 1 } },
+            // Sort by site then time so $setWindowFields can compute row-by-row deltas
+            { $sort: { site_id: 1, timestamp: 1 } },
+            // Compute previous timestamp and interval per site using a sliding window
+            { $setWindowFields: {
+                partitionBy: '$site_id',
+                sortBy: { timestamp: 1 },
+                output: {
+                    prev_ts:       { $shift: { output: '$timestamp',         by: -1, default: null } },
+                    prev_interval: { $shift: { output: '$snapshot_interval', by: -1, default: null } }
+                }
             }},
-            // Sort entries by timestamp within each group
+            // Calculate delta and determine if it counts as uptime
             { $addFields: {
-                entries: { $sortArray: { input: '$entries', sortBy: { ts: 1 } } }
-            }},
-            // Compute uptime: sum of deltas between consecutive timestamps,
-            // capped at 2x the previous snapshot's interval (or 60s if missing)
-            { $addFields: {
-                uptime_seconds: { $reduce: {
-                    input: { $range: [1, { $size: '$entries' }] },
-                    initialValue: 0,
-                    in: { $let: {
+                date_key: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
+                delta_sec: { $cond: [
+                    { $eq: ['$prev_ts', null] },
+                    0,
+                    { $let: {
                         vars: {
-                            prev: { $arrayElemAt: ['$entries', { $subtract: ['$$this', 1] }] },
-                            curr: { $arrayElemAt: ['$entries', '$$this'] }
+                            deltaMs:  { $subtract: ['$timestamp', '$prev_ts'] },
+                            maxGapMs: { $multiply: [{ $ifNull: ['$prev_interval', 60000] }, 2] }
                         },
-                        in: { $let: {
-                            vars: {
-                                deltaMs: { $subtract: ['$$curr.ts', '$$prev.ts'] },
-                                maxGapMs: { $multiply: [{ $ifNull: ['$$prev.interval', 60000] }, 2] }
-                            },
-                            in: { $cond: [
-                                { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', '$$maxGapMs'] }] },
-                                { $add: ['$$value', { $round: [{ $divide: ['$$deltaMs', 1000] }, 0] }] },
-                                '$$value'
-                            ]}
-                        }}
+                        in: { $cond: [
+                            { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', '$$maxGapMs'] }] },
+                            { $round: [{ $divide: ['$$deltaMs', 1000] }, 0] },
+                            0
+                        ]}
                     }}
-                }}
+                ]}
+            }},
+            // Sum per site per day
+            { $group: {
+                _id: { site_id: { $toString: '$site_id' }, date_key: '$date_key' },
+                uptime_seconds: { $sum: '$delta_sec' }
             }},
             { $project: { _id: 0, site_id: '$_id.site_id', date_key: '$_id.date_key', uptime_seconds: 1 } }
         ])
