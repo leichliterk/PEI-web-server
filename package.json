@@ -24,6 +24,7 @@
     "luxon": "^3.7.2",
     "mongoose": "^8.4.0",
     "multer": "^2.1.1",
+    "node-cron": "^4.6.0",
     "nodemon": "^3.1.10",
     "socket.io": "^4.8.3",
     "superagent": "^9.0.2"
