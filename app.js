@@ -7,6 +7,7 @@ dotenv.config();
 const connectToMongo = require('./src/config/db');
 const fcm = require('./src/services/fcm.service');
 const cors = require('cors');
+const cron = require('node-cron');
 const { initializeWebSocket } = require('./src/websocket');
 const Tenant = require('./src/models/tenant.model');
 const ConnectionSession = require('./src/models/connectionSession.model');
@@ -71,6 +72,11 @@ async function startServer() {
     } catch (error) {
         console.error('Startup: failed to close orphaned sessions:', error);
     }
+
+    // Nightly job: pre-compute daily destruction report at 01:00 UTC
+    const { buildYesterday } = require('./src/services/dailyReportBuilder');
+    cron.schedule('0 1 * * *', buildYesterday, { timezone: 'America/New_York' });
+    console.log('Scheduled nightly report builder at 01:00 Eastern');
 
     server.listen(process.env.PORT || 443, () => {
         console.log("PEI-DATA-API is listening on port 443.....");
