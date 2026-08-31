@@ -34,6 +34,12 @@ async function computeUptime(tenantId, siteId, dayStart, dayEnd) {
         }},
         { $match: { 'flare_tag.error': { $ne: true }, 'flare_tag.value': { $gt: 0 } } },
         { $project: { timestamp: 1, snapshot_interval: 1 } },
+        // Deduplicate by timestamp (both numeric and string site_id docs may exist)
+        { $group: {
+            _id: '$timestamp',
+            snapshot_interval: { $first: '$snapshot_interval' }
+        }},
+        { $project: { _id: 0, timestamp: '$_id', snapshot_interval: 1 } },
         { $sort: { timestamp: 1 } },
         { $setWindowFields: {
             sortBy: { timestamp: 1 },
