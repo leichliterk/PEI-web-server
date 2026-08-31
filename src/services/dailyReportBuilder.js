@@ -49,22 +49,25 @@ async function computeUptime(tenantId, siteId, dayStart, dayEnd) {
             }
         }},
         { $match: { prev_ts: { $ne: null } } },
+        // Count qualifying intervals and multiply by the expected interval duration
         { $group: {
             _id: null,
-            uptime_seconds: { $sum: {
+            uptime_ms: { $sum: {
                 $let: {
                     vars: {
                         deltaMs:  { $subtract: ['$timestamp', '$prev_ts'] },
+                        intervalMs: { $ifNull: ['$prev_interval', 5000] },
                         maxGapMs: { $multiply: [{ $ifNull: ['$prev_interval', 5000] }, 2] }
                     },
                     in: { $cond: [
                         { $and: [{ $gt: ['$$deltaMs', 0] }, { $lte: ['$$deltaMs', '$$maxGapMs'] }] },
-                        { $round: [{ $divide: ['$$deltaMs', 1000] }, 0] },
+                        '$$intervalMs',
                         0
                     ]}
                 }
             }}
-        }}
+        }},
+        { $project: { _id: 0, uptime_seconds: { $round: [{ $divide: ['$uptime_ms', 1000] }, 0] } } }
     ]);
 
     return result.length > 0 ? result[0].uptime_seconds : 0;
